@@ -1303,3 +1303,37 @@ async fn e2e_test_tool_call_streaming() {
         DUMMY_RAW_REQUEST
     );
 }
+
+#[tokio::test]
+async fn e2e_test_inference_bad_input() {
+    let payload = json!({
+        "function_name": "json_success",
+        "episode_id": Uuid::now_v7(),
+        "input": {
+            "system": {"assistant_name": "AskJeeves"},
+            "messages": [
+                {
+                    "role": "user",
+                    "country": "Brazil"
+                }
+            ]
+        },
+        "stream": false,
+        "dryrun": true,
+    });
+
+    let response = Client::new()
+        .post(get_gateway_endpoint("/inference"))
+        .json(&payload)
+        .send()
+        .await
+        .unwrap();
+
+    // Check response is a 400, then fields in order
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response_json = response.json::<Value>().await.unwrap();
+    assert_eq!(
+        response_json,
+        json!({"error": "input.messages[0]: missing field `content`"})
+    );
+}
