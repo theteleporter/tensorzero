@@ -1,0 +1,5 @@
+You are a helpful research assistant. You have access to a history of queries made previously to Wikipedia in order to answer the following question.
+
+{{ question }}
+
+Please provide an answer to the question using the tool provided and the message history.

@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "queries_remaining": {
+      "type": "integer"
+    }
+  },
+  "required": ["queries_remaining"],
+  "additionalProperties": false
+}

@@ -1,0 +1,67 @@
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │                                   MODELS                                   │
+# └────────────────────────────────────────────────────────────────────────────┘
+
+
+[models."gpt-4o-mini"]
+routing = ["openai"]
+
+[models."gpt-4o-mini".providers.openai]
+type = "openai"
+model_name = "gpt-4o-mini-2024-07-18"
+
+
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │                                 FUNCTIONS                                  │
+# └────────────────────────────────────────────────────────────────────────────┘
+
+[functions.beerqa_solver]
+type = "chat"
+system_schema = "functions/beerqa_solver/system_schema.json"
+tools = ["get_summary", "get_full_text", "submit_answer"]
+tool_choice = "required"
+
+[functions.beerqa_solver.variants.baseline]
+weight = 1
+type = "chat_completion"
+model = "gpt-4o-mini"
+system_template = "functions/beerqa_solver/baseline/system_template.minijinja"
+
+[functions.final_answer]
+tool_choice = { "specific" = "submit_answer" }
+type = "chat"
+system_schema = "functions/final_answer/system_schema.json"
+tools = ["submit_answer"]
+
+[functions.final_answer.variants.baseline]
+weight = 1
+type = "chat_completion"
+model = "gpt-4o-mini"
+system_template = "functions/final_answer/baseline/system_template.minijinja"
+
+
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │                                  METRICS                                   │
+# └────────────────────────────────────────────────────────────────────────────┘
+
+[metrics.exact_match]
+type = "boolean"
+level = "episode"
+optimize = "max"
+
+
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │                                    TOOLS                                   │
+# └────────────────────────────────────────────────────────────────────────────┘
+
+[tools.get_summary]
+description = "Get a summary of a Wikipedia page with a specified title. This tool returns None if the page does not exist."
+parameters = "tools/get_summary.json"
+
+[tools.get_full_text]
+description = "Get the full text of a Wikipedia page with a specified title. This tool returns None if the page does not exist."
+parameters = "tools/get_full_text.json"
+
+[tools.submit_answer]
+description = "Submit the final answer to the user."
+parameters = "tools/submit_answer.json"
