@@ -270,7 +270,7 @@ soupsieve==2.6
     # via beautifulsoup4
 stack-data==0.6.3
     # via ipython
-tensorzero==2024.9.3
+../../clients/python
     # via -r requirements.in
 terminado==0.18.1
     # via
@@ -286,6 +286,8 @@ tornado==6.4.1
     #   jupyterlab
     #   notebook
     #   terminado
+tqdm==4.66.5
+    # via -r requirements.in
 traitlets==5.14.3
     # via
     #   comm

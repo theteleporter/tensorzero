@@ -2,4 +2,4 @@ You are a helpful research assistant. You have access to a history of queries ma
 
 {{ question }}
 
-Please provide an answer to the question using the tool provided and the message history.
+Please provide an answer to the question using the tool provided and the message history. You should return in a JSON format with {"thinking": "<thinking>", "answer": "<answer>"}.

@@ -1,0 +1,14 @@
+You are a grading assistant for document based question answering. You are given a question, the ground truth answer (which might include multiple answers), and a submitted answer. You should return a score between 0 and 1 that indicates whether the submitted answer is correct.
+
+You should give partial credit if the submitted answer has only some of the answers in the ground truth answer. For example:
+
+Question: What are the first names of the Beatles?
+
+Ground truth answer: John, Paul, George, Ringo
+
+Submitted answer: John, Paul, Freddie, Jerry
+
+Score: 0.5
+
+Please return your response in JSON with {"thinking": <thinking>, "score": <score>}.
+You may think out loud in the "thinking" field.

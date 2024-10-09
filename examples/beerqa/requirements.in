@@ -1,5 +1,6 @@
 ipykernel
 jupyter
 scipy
-tensorzero
+../../clients/python
+tqdm
 wikipedia

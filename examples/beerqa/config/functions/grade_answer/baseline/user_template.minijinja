@@ -1,0 +1,5 @@
+Question: {{ question }}
+
+Ground truth answer: {{ gt_answer | join(", ") }}
+
+Submitted answer: {{ submitted_answer }}

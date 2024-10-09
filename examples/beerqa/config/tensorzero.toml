@@ -10,6 +10,13 @@ routing = ["openai"]
 type = "openai"
 model_name = "gpt-4o-mini-2024-07-18"
 
+[models."gpt-4o"]
+routing = ["openai"]
+
+[models."gpt-4o".providers.openai]
+type = "openai"
+model_name = "gpt-4o-2024-08-06"
+
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                                 FUNCTIONS                                  │
@@ -26,19 +33,58 @@ weight = 1
 type = "chat_completion"
 model = "gpt-4o-mini"
 system_template = "functions/beerqa_solver/baseline/system_template.minijinja"
+json_mode = "strict"
+
+[functions.beerqa_solver.variants.gpt4o]
+weight = 1
+type = "chat_completion"
+model = "gpt-4o"
+system_template = "functions/beerqa_solver/baseline/system_template.minijinja"
+json_mode = "strict"
 
 [functions.final_answer]
-tool_choice = { "specific" = "submit_answer" }
-type = "chat"
+type = "json"
 system_schema = "functions/final_answer/system_schema.json"
-tools = ["submit_answer"]
+output_schema = "functions/final_answer/output_schema.json"
 
 [functions.final_answer.variants.baseline]
 weight = 1
 type = "chat_completion"
 model = "gpt-4o-mini"
 system_template = "functions/final_answer/baseline/system_template.minijinja"
+json_mode = "strict"
 
+[functions.final_answer.variants.gpt4o]
+weight = 1
+type = "chat_completion"
+model = "gpt-4o"
+system_template = "functions/final_answer/baseline/system_template.minijinja"
+json_mode = "strict"
+
+[functions.grade_answer]
+type = "json"
+user_schema = "functions/grade_answer/user_schema.json"
+output_schema = "functions/grade_answer/output_schema.json"
+
+[functions.grade_answer.variants.baseline]
+weight = 1
+type = "chat_completion"
+model = "gpt-4o"
+system_template = "functions/grade_answer/baseline/system_template.minijinja"
+user_template = "functions/grade_answer/baseline/user_template.minijinja"
+json_mode = "strict"
+
+[functions.heuristic_evaluation]
+type = "json"
+system_schema = "functions/heuristic_evaluation/system_schema.json"
+output_schema = "functions/heuristic_evaluation/output_schema.json"
+
+[functions.heuristic_evaluation.variants.baseline]
+weight = 1
+type = "chat_completion"
+model = "gpt-4o-mini"
+system_template = "functions/heuristic_evaluation/baseline/system_template.minijinja"
+json_mode = "strict"
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                                  METRICS                                   │

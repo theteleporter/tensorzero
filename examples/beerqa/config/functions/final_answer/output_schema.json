@@ -2,10 +2,13 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "question": {
+    "thinking": {
+      "type": "string"
+    },
+    "answer": {
       "type": "string"
     }
   },
-  "required": ["question"],
+  "required": ["thinking", "answer"],
   "additionalProperties": false
 }
