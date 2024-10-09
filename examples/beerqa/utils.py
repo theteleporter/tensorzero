@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import wikipedia
-from tensorzero import AsyncTensorZeroGateway, ToolCall, ToolResult
+from tensorzero import AsyncTensorZeroGateway, Text, ToolCall, ToolResult
 
 log = logging.getLogger(__name__)
 tensorzero_semaphore = asyncio.Semaphore(10)
@@ -108,14 +108,17 @@ class ToolCallResult:
 @dataclass
 class Message:
     role: Role
-    content: Union[str, ToolCallResult, ToolCall]
+    content: List[Union[Text, ToolCallResult, ToolCall]]
 
     def render(self) -> List[Dict[str, Any]]:
         """
         Render the message to a list of TensorZero messages that can be sent to the Gateway.
         """
         messages = []
-        for content in self.content:
+        content_list = (
+            self.content if isinstance(self.content, list) else [self.content]
+        )
+        for content in content_list:
             if isinstance(content, ToolCallResult):
                 messages.extend(content.render())
             elif isinstance(content, ToolCall):
@@ -169,6 +172,7 @@ async def beam_search(
             if node.score is not None:
                 nodes_with_scores.append(node)
         nodes = nodes_with_scores
+        breakpoint()
         # Use a heap to efficiently get the top beam_width nodes without a full sort
         nodes = nlargest(beam_width, nodes, key=lambda n: n.score)
         tasks = []
@@ -176,6 +180,7 @@ async def beam_search(
             for i in range(branching_factor):
                 tasks.append(generate_successor(node, client, queries_remaining))
         results = await asyncio.gather(*tasks)
+        breakpoint()
         new_nodes = [result for result in results if result is not None]
         nodes_to_remove = []
         for node in new_nodes:
@@ -200,6 +205,41 @@ async def beam_search(
                 message.content = new_content
         for node in nodes_to_remove:
             new_nodes.remove(node)
+        nodes = new_nodes
+    # Find the solution with the highest score
+    best_solution = None
+    best_score = float("-inf")
+    for solution in solutions:
+        if solution.score is not None and solution.score > best_score:
+            best_solution = solution
+            best_score = solution.score
+
+    return best_solution
+
+
+async def grade_answer(
+    client: AsyncTensorZeroGateway,
+    question: str,
+    gt_answer: List[str],
+    submitted_answer: str,
+) -> float:
+    async with tensorzero_semaphore:
+        response = await client.inference(
+            function_name="grade_answer",
+            input={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": {
+                            "question": question,
+                            "gt_answer": gt_answer,
+                            "submitted_answer": submitted_answer,
+                        },
+                    }
+                ]
+            },
+        )
+    return response.output.parsed["score"]
 
 
 async def heuristic_evaluate_node(
@@ -213,6 +253,7 @@ async def heuristic_evaluate_node(
     """
     try:
         async with tensorzero_semaphore:
+            breakpoint()
             response = await client.inference(
                 function_name="heuristic_evaluation",
                 input={
@@ -253,7 +294,23 @@ async def generate_successor(
         log.warning(f"Error generating successor: {e}")
         return None
     new_node = deepcopy(node)
-    new_node.messages.append(
-        Message(Role.ASSISTANT, response.output.parsed["messages"])
-    )
+    new_node.messages.append(Message(Role.ASSISTANT, response.content))
     return new_node
+
+
+async def main():
+    beerqa = BeerQA("data/beerqa_dev_v1.0.json")
+    async with AsyncTensorZeroGateway("http://localhost:3000") as client:
+        question = beerqa.get_question(0)
+        # gt_answers = beerqa.get_answers(0)
+        root_node = Node(
+            messages=[Message(Role.USER, [Text(type="text", text=question)])]
+        )
+        solution = await beam_search(
+            root_node, client, beam_width=5, branching_factor=3, max_depth=10
+        )
+        print(solution)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

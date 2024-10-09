@@ -7,9 +7,7 @@
     },
     "score": {
       "type": "number",
-      "description": "The score indicating the evaluation result.",
-      "minimum": 0,
-      "maximum": 1
+      "description": "The score indicating the evaluation result."
     }
   },
   "required": ["thinking", "score"],
