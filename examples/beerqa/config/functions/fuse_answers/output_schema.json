@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "thinking": {
+      "type": "string"
+    },
+    "answer": {
+      "type": "string"
+    }
+  },
+  "required": ["thinking", "answer"],
+  "additionalProperties": false
+}

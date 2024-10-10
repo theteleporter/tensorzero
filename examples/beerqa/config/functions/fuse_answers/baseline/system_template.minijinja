@@ -1,0 +1,15 @@
+You are an agent attempting to answer a question by searching over Wikipedia for pages which contain the answer.
+At this point we have already completed many sequences of queries and are trying to fuse together the answers to these queries to get a final answer.
+You will be given a list of Solutions, where each solutions will contain the list of queries as well as the final answer to the question.
+
+Your job is to read through the solutions (delimited by ---) and fuse them together to get a final answer.
+Please give the answer that is supported by the information found best and seems to answer the question most directly.
+
+Answer in the format of a JSON object with the following structure:
+{
+    "thinking": "...",
+    "answer": "..."
+}
+
+The question is:
+{{ question }}

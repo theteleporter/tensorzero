@@ -1,0 +1,8 @@
+{% for solution in solutions %}
+  Queries:
+  {% for query in solution.queries %}
+    {{ query.title }}: {{ query.content }}
+  {% endfor %}
+  Answer: {{ solution.answer }}
+  ---
+{% endfor %}

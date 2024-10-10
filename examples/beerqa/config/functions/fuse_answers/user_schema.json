@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "solutions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "queries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                }
+              },
+              "required": ["title", "content"]
+            }
+          },
+          "answer": {
+            "type": "string"
+          }
+        },
+        "required": ["queries", "answer"]
+      }
+    }
+  },
+  "required": ["solutions"]
+}
