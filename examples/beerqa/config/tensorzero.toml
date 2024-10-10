@@ -86,6 +86,20 @@ model = "gpt-4o-mini"
 system_template = "functions/heuristic_evaluation/baseline/system_template.minijinja"
 json_mode = "strict"
 
+[functions.fuse_answers]
+type = "json"
+system_schema = "functions/fuse_answers/system_schema.json"
+user_schema = "functions/fuse_answers/user_schema.json"
+output_schema = "functions/fuse_answers/output_schema.json"
+
+[functions.fuse_answers.variants.baseline]
+weight = 1
+type = "chat_completion"
+model = "gpt-4o-mini"
+system_template = "functions/fuse_answers/baseline/system_template.minijinja"
+user_template = "functions/fuse_answers/baseline/user_template.minijinja"
+json_mode = "strict"
+
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                                  METRICS                                   │
 # └────────────────────────────────────────────────────────────────────────────┘
