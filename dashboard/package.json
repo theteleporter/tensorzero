@@ -1,0 +1,18 @@
+{
+  "name": "dashboard",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@clickhouse/client": "^1.7.0",
+    "@types/node": "^22.7.9",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3"
+  }
+}
