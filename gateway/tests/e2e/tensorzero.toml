@@ -86,7 +86,7 @@ routing = ["gcp_vertex_anthropic"]
 [models.claude-3-5-sonnet-20240620-gcp-vertex.providers.gcp_vertex_anthropic]
 type = "gcp_vertex_anthropic"
 model_id = "claude-3-5-sonnet@20240620"
-location = "us-central1"
+location = "us-east5"
 project_id = "tensorzero-public"
 
 [models."gemini-1.5-flash-001"]
@@ -576,12 +576,28 @@ user_template = "../../fixtures/config/functions/json_success/prompt/user_templa
 json_mode = "on"
 max_tokens = 100
 
+[functions.json_success.variants.gcp-vertex-haiku-implicit]
+type = "chat_completion"
+model = "claude-3-haiku-20240307-gcp-vertex"
+system_template = "../../fixtures/config/functions/json_success/prompt/system_template.minijinja"
+user_template = "../../fixtures/config/functions/json_success/prompt/user_template.minijinja"
+json_mode = "implicit_tool"
+max_tokens = 100
+
 [functions.json_success.variants.gcp-vertex-sonnet]
 type = "chat_completion"
 model = "claude-3-5-sonnet-20240620-gcp-vertex"
 system_template = "../../fixtures/config/functions/json_success/prompt/system_template.minijinja"
 user_template = "../../fixtures/config/functions/json_success/prompt/user_template.minijinja"
 json_mode = "on"
+max_tokens = 100
+
+[functions.json_success.variants.gcp-vertex-sonnet-implicit]
+type = "chat_completion"
+model = "claude-3-5-sonnet-20240620-gcp-vertex"
+system_template = "../../fixtures/config/functions/json_success/prompt/system_template.minijinja"
+user_template = "../../fixtures/config/functions/json_success/prompt/user_template.minijinja"
+json_mode = "implicit_tool"
 max_tokens = 100
 
 [functions.json_success.variants.google-ai-studio-gemini-flash-8b]
