@@ -661,14 +661,17 @@ where
 
 impl IntoResponse for AnyhowError {
     fn into_response(self) -> Response {
-        match self.0.downcast::<Error>() {
-            Ok(error) => error.into_response(),
-            Err(error) => {
-                let error = AnyhowError(error);
-                error.log();
+        match self.0.downcast_ref::<Error>() {
+            Some(error) => {
+                let status_code = error.status_code();
+                let body = json!({"error": self.to_string()});
+                (status_code, Json(body)).into_response()
+            }
+            None => {
+                self.log();
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": error.to_string()})),
+                    Json(json!({"error": self.to_string()})),
                 )
                     .into_response()
             }
@@ -679,7 +682,16 @@ impl IntoResponse for AnyhowError {
 impl AnyhowError {
     fn log(&self) {
         match self.0.downcast_ref::<Error>() {
-            Some(error) => error.log(),
+            Some(error) => {
+                // Log the error using the `tracing` library
+                match error.level() {
+                    tracing::Level::ERROR => tracing::error!("{}", self.to_string()),
+                    tracing::Level::WARN => tracing::warn!("{}", self.to_string()),
+                    tracing::Level::INFO => tracing::info!("{}", self.to_string()),
+                    tracing::Level::DEBUG => tracing::debug!("{}", self.to_string()),
+                    tracing::Level::TRACE => tracing::trace!("{}", self.to_string()),
+                }
+            }
             None => tracing::error!("{}", self.0),
         }
     }
@@ -702,7 +714,7 @@ impl AnyhowError {
 
 impl std::fmt::Display for AnyhowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{:#}", self.0)
     }
 }
 
