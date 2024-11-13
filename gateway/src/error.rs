@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Response};
@@ -643,6 +644,112 @@ impl<T> ResultExt<T> for Result<T, Error> {
                 error.log();
                 None
             }
+        }
+    }
+}
+
+pub struct AnyhowError(anyhow::Error);
+
+impl<E> From<E> for AnyhowError
+where
+    E: Into<anyhow::Error>,
+{
+    fn from(error: E) -> Self {
+        Self(error.into())
+    }
+}
+
+impl IntoResponse for AnyhowError {
+    fn into_response(self) -> Response {
+        match self.0.downcast::<Error>() {
+            Ok(error) => error.into_response(),
+            Err(error) => {
+                let error = AnyhowError(error);
+                error.log();
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": error.to_string()})),
+                )
+                    .into_response()
+            }
+        }
+    }
+}
+
+impl AnyhowError {
+    fn log(&self) {
+        match self.0.downcast_ref::<Error>() {
+            Some(error) => error.log(),
+            None => tracing::error!("{}", self.0),
+        }
+    }
+
+    fn context<C>(self, context: C) -> Self
+    where
+        C: Display + Send + Sync + 'static,
+    {
+        Self(self.0.context(context))
+    }
+
+    fn with_context<C, F>(self, f: F) -> Self
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C,
+    {
+        Self(self.0.context(f()))
+    }
+}
+
+impl std::fmt::Display for AnyhowError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<T> ResultExt<T> for Result<T, AnyhowError> {
+    fn ok_or_log(self) -> Option<T> {
+        match self {
+            Ok(value) => Some(value),
+            Err(error) => {
+                error.log();
+                None
+            }
+        }
+    }
+}
+
+pub trait ContextExt {
+    #[allow(unused)]
+    fn context<C>(self, context: C) -> Self
+    where
+        C: Display + Send + Sync + 'static;
+
+    #[allow(unused)]
+    fn with_context<C, F>(self, f: F) -> Self
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C;
+}
+
+impl<T> ContextExt for Result<T, AnyhowError> {
+    fn context<C>(self, context: C) -> Result<T, AnyhowError>
+    where
+        C: Display + Send + Sync + 'static,
+    {
+        match self {
+            Ok(value) => Ok(value),
+            Err(error) => Err(error.context(context)),
+        }
+    }
+
+    fn with_context<C, F>(self, f: F) -> Result<T, AnyhowError>
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C,
+    {
+        match self {
+            Ok(value) => Ok(value),
+            Err(error) => Err(error.with_context(f)),
         }
     }
 }

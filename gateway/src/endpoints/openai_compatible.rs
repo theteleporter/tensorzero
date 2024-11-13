@@ -25,7 +25,7 @@ use uuid::Uuid;
 use crate::endpoints::inference::{
     inference, ChatCompletionInferenceParams, InferenceParams, Params,
 };
-use crate::error::Error;
+use crate::error::{AnyhowError, Error};
 use crate::gateway_util::{AppState, AppStateData, StructuredJson};
 use crate::inference::types::{
     current_timestamp, ContentBlockChunk, ContentBlockOutput, Input, InputMessage,
@@ -49,7 +49,7 @@ pub async fn inference_handler(
     }): AppState,
     headers: HeaderMap,
     StructuredJson(openai_compatible_params): StructuredJson<OpenAICompatibleParams>,
-) -> Result<Response<Body>, Error> {
+) -> Result<Response<Body>, AnyhowError> {
     let params = (headers, openai_compatible_params).try_into()?;
     let response = inference(config, http_client, clickhouse_connection_info, params).await?;
     match response {

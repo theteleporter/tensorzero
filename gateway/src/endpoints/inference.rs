@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::clickhouse::ClickHouseConnectionInfo;
 use crate::config_parser::Config;
 use crate::embeddings::EmbeddingModelConfig;
-use crate::error::{Error, ResultExt};
+use crate::error::{AnyhowError, Error, ResultExt};
 use crate::function::sample_variant;
 use crate::function::FunctionConfig;
 use crate::gateway_util::{AppState, AppStateData, StructuredJson};
@@ -128,7 +128,7 @@ pub async fn inference_handler(
         clickhouse_connection_info,
     }): AppState,
     StructuredJson(params): StructuredJson<Params<'static>>,
-) -> Result<Response<Body>, Error> {
+) -> Result<Response<Body>, AnyhowError> {
     let inference_output =
         inference(config, http_client, clickhouse_connection_info, params).await?;
     match inference_output {
@@ -153,7 +153,7 @@ pub async fn inference(
     http_client: reqwest::Client,
     clickhouse_connection_info: ClickHouseConnectionInfo,
     params: Params<'static>,
-) -> Result<InferenceOutput, Error> {
+) -> Result<InferenceOutput, AnyhowError> {
     // To be used for the Inference table processing_time measurements
     let start_time = Instant::now();
     // Get the function config or return an error if it doesn't exist
@@ -167,7 +167,8 @@ pub async fn inference(
     if candidate_variant_names.is_empty() {
         return Err(Error::InvalidFunctionVariants {
             message: format!("Function `{}` has no variants", params.function_name),
-        });
+        }
+        .into());
     }
 
     // Validate the input
@@ -181,7 +182,8 @@ pub async fn inference(
         if candidate_variant_names.is_empty() {
             return Err(Error::UnknownVariant {
                 name: variant_name.to_string(),
-            });
+            }
+            .into());
         }
     }
 
@@ -346,7 +348,8 @@ pub async fn inference(
     // Eventually, if we get here, it means we tried every variant and none of them worked
     Err(Error::AllVariantsFailed {
         errors: variant_errors,
-    })
+    }
+    .into())
 }
 
 fn create_stream(
