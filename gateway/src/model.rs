@@ -366,19 +366,10 @@ impl<'de> Deserialize<'de> for ProviderConfig {
             ProviderConfigHelper::Dummy {
                 model_name,
                 api_key_location,
-            } => match api_key_location {
-                CredentialLocation::Dynamic(key_name) => ProviderConfig::Dummy(DummyProvider {
-                    model_name,
-                    credentials: DummyCredentials::Dynamic(key_name),
-                }),
-                CredentialLocation::None => ProviderConfig::Dummy(DummyProvider {
-                    model_name,
-                    credentials: DummyCredentials::None,
-                }),
-                _ => Err(serde::de::Error::custom(
-                    "Invalid api_key_location for Dummy provider".to_string(),
-                ))?,
-            },
+            } => ProviderConfig::Dummy(
+                DummyProvider::new(model_name, api_key_location)
+                    .map_err(|e| D::Error::custom(e.to_string()))?,
+            ),
         })
     }
 }
@@ -647,7 +638,16 @@ impl ModelTable {
             };
             // Remove the last two characters of the prefix to get the provider type
             let provider_type = &prefix[..prefix.len() - 2];
-            todo!("Call the constructor for the ProviderConfig struct here, then construct a ModelConfig");
+            let provider_config =
+                match self.get_shorthand_provider_config(provider_type, model_name) {
+                    Ok(provider_config) => provider_config,
+                    Err(e) => return None,
+                };
+            let model_config = ModelConfig {
+                routing: vec![provider_type.to_string()],
+                providers: HashMap::from([(provider_type.to_string(), provider_config)]),
+            };
+            return Some(&model_config);
         }
 
         // Try direct lookup (if it's blacklisted, it's not in the table)
@@ -656,6 +656,57 @@ impl ModelTable {
         }
 
         None
+    }
+
+    fn get_shorthand_provider_config(
+        &self,
+        provider_type: &str,
+        model_name: &str,
+    ) -> Result<ProviderConfig, Error> {
+        let model_name = model_name.to_string();
+        let provider_config = match provider_type {
+            "anthropic" => ProviderConfig::Anthropic(AnthropicProvider::new(
+                model_name,
+                providers::anthropic::default_api_key_location(),
+            )?),
+            "fireworks" => ProviderConfig::Fireworks(FireworksProvider::new(
+                model_name,
+                providers::fireworks::default_api_key_location(),
+            )?),
+            "google_ai_studio_gemini" => {
+                ProviderConfig::GoogleAIStudioGemini(GoogleAIStudioGeminiProvider::new(
+                    model_name,
+                    providers::google_ai_studio_gemini::default_api_key_location(),
+                )?)
+            }
+            "mistral" => ProviderConfig::Mistral(MistralProvider::new(
+                model_name,
+                providers::mistral::default_api_key_location(),
+            )?),
+            "openai" => ProviderConfig::OpenAI(OpenAIProvider::new(
+                model_name,
+                None,
+                providers::openai::default_api_key_location(),
+            )?),
+            "together" => ProviderConfig::Together(TogetherProvider::new(
+                model_name,
+                providers::together::default_api_key_location(),
+            )?),
+            "xai" => ProviderConfig::XAI(XAIProvider::new(
+                model_name,
+                providers::xai::default_api_key_location(),
+            )?),
+            "dummy" => ProviderConfig::Dummy(DummyProvider::new(
+                model_name,
+                providers::dummy::default_api_key_location(),
+            )?),
+            _ => {
+                return Err(Error::new(ErrorDetails::Config {
+                    message: format!("Invalid provider type in shorthand model name: {}. This should never happen. Please file a bug report at https://github.com/tensorzero/tensorzero/issues/new", provider_type),
+                }))
+            }
+        };
+        Ok(provider_config)
     }
 }
 
