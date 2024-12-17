@@ -23,7 +23,7 @@ async fn main() {
 
     // Load config
     let config: &'static Config = Box::leak(Box::new(
-        Config::load().expect_pretty("Failed to load config"),
+        Config::load().await.expect_pretty("Failed to load config"),
     ));
 
     // Initialize AppState

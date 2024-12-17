@@ -128,7 +128,7 @@ pub trait Variant {
         Error,
     >;
 
-    fn validate(
+    async fn validate(
         &self,
         function: &FunctionConfig,
         models: &ModelTable,
@@ -331,48 +331,64 @@ impl Variant for VariantConfig {
     }
 
     #[instrument(skip_all, fields(variant_name = %variant_name))]
-    fn validate(
+    async fn validate(
         &self,
         function: &FunctionConfig,
         models: &ModelTable,
         embedding_models: &HashMap<String, EmbeddingModelConfig>,
-        templates: &TemplateConfig,
+        templates: &TemplateConfig<'_>,
         function_name: &str,
         variant_name: &str,
     ) -> Result<(), Error> {
         match self {
-            VariantConfig::ChatCompletion(params) => params.validate(
-                function,
-                models,
-                embedding_models,
-                templates,
-                function_name,
-                variant_name,
-            ),
-            VariantConfig::BestOfNSampling(params) => params.validate(
-                function,
-                models,
-                embedding_models,
-                templates,
-                function_name,
-                variant_name,
-            ),
-            VariantConfig::Dicl(params) => params.validate(
-                function,
-                models,
-                embedding_models,
-                templates,
-                function_name,
-                variant_name,
-            ),
-            VariantConfig::MixtureOfN(params) => params.validate(
-                function,
-                models,
-                embedding_models,
-                templates,
-                function_name,
-                variant_name,
-            ),
+            VariantConfig::ChatCompletion(params) => {
+                params
+                    .validate(
+                        function,
+                        models,
+                        embedding_models,
+                        templates,
+                        function_name,
+                        variant_name,
+                    )
+                    .await
+            }
+            VariantConfig::BestOfNSampling(params) => {
+                params
+                    .validate(
+                        function,
+                        models,
+                        embedding_models,
+                        templates,
+                        function_name,
+                        variant_name,
+                    )
+                    .await
+            }
+            VariantConfig::Dicl(params) => {
+                params
+                    .validate(
+                        function,
+                        models,
+                        embedding_models,
+                        templates,
+                        function_name,
+                        variant_name,
+                    )
+                    .await
+            }
+            VariantConfig::MixtureOfN(params) => {
+                params
+                    .validate(
+                        function,
+                        models,
+                        embedding_models,
+                        templates,
+                        function_name,
+                        variant_name,
+                    )
+                    .await
+            }
         }
     }
 

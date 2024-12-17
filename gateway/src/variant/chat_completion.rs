@@ -163,7 +163,7 @@ impl Variant for ChatCompletionConfig {
             false,
             &mut inference_params,
         )?;
-        let model_config = models.models.get(&self.model).ok_or_else(|| {
+        let model_config = models.models.get(&self.model).await.ok_or_else(|| {
             Error::new(ErrorDetails::UnknownModel {
                 name: self.model.clone(),
             })
@@ -205,7 +205,7 @@ impl Variant for ChatCompletionConfig {
             true,
             &mut inference_params,
         )?;
-        let model_config = models.models.get(&self.model).ok_or_else(|| {
+        let model_config = models.models.get(&self.model).await.ok_or_else(|| {
             Error::new(ErrorDetails::UnknownModel {
                 name: self.model.clone(),
             })
@@ -229,12 +229,12 @@ impl Variant for ChatCompletionConfig {
     ///    - If the template requires variables, the schema is provided.
     ///  - That the model name is a valid model
     ///  - That the weight is non-negative
-    fn validate(
+    async fn validate(
         &self,
         function: &FunctionConfig,
         models: &ModelTable,
         _embedding_models: &HashMap<String, EmbeddingModelConfig>,
-        templates: &TemplateConfig,
+        templates: &TemplateConfig<'_>,
         function_name: &str,
         variant_name: &str,
     ) -> Result<(), Error> {
@@ -246,7 +246,7 @@ impl Variant for ChatCompletionConfig {
                 ),
             }.into());
         }
-        let model = models.get(&self.model).ok_or_else(|| Error::new(ErrorDetails::Config {
+        let model = models.get(&self.model).await.ok_or_else(|| Error::new(ErrorDetails::Config {
             message: format!("`functions.{function_name}.variants.{variant_name}`: `model` must be a valid model name"),
         }))?;
 
@@ -343,7 +343,7 @@ impl Variant for ChatCompletionConfig {
                 self.prepare_request(input, function, inference_config, false, inference_param)?;
             inference_requests.push(request);
         }
-        let model_config = models.models.get(&self.model).ok_or_else(|| {
+        let model_config = models.models.get(&self.model).await.ok_or_else(|| {
             Error::new(ErrorDetails::UnknownModel {
                 name: self.model.clone(),
             })

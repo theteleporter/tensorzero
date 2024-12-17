@@ -18,7 +18,6 @@ use crate::{
     function::FunctionConfig,
     inference::types::{InferenceResult, InferenceResultChunk, InferenceResultStream, Input},
     minijinja_util::TemplateConfig,
-    model::ModelConfig,
     variant::chat_completion::ChatCompletionConfig,
 };
 
@@ -95,12 +94,12 @@ impl Variant for MixtureOfNConfig {
         .into())
     }
 
-    fn validate(
+    async fn validate(
         &self,
         function: &FunctionConfig,
         models: &ModelTable,
         embedding_models: &HashMap<String, EmbeddingModelConfig>,
-        templates: &TemplateConfig,
+        templates: &TemplateConfig<'_>,
         function_name: &str,
         variant_name: &str,
     ) -> Result<(), Error> {
@@ -120,6 +119,7 @@ impl Variant for MixtureOfNConfig {
                     function_name,
                     candidate,
                 )
+                .await
                 .map_err(|e| {
                     Error::new(ErrorDetails::InvalidCandidate {
                         variant_name: variant_name.to_string(),
@@ -128,14 +128,17 @@ impl Variant for MixtureOfNConfig {
                 })?;
         }
         // Validate the evaluator variant
-        self.fuser.inner.validate(
-            function,
-            models,
-            embedding_models,
-            templates,
-            function_name,
-            variant_name,
-        )?;
+        self.fuser
+            .inner
+            .validate(
+                function,
+                models,
+                embedding_models,
+                templates,
+                function_name,
+                variant_name,
+            )
+            .await?;
         Ok(())
     }
 
@@ -238,7 +241,7 @@ impl MixtureOfNConfig {
         &'a self,
         input: &Input,
         function: &'a FunctionConfig,
-        models: &'a HashMap<String, ModelConfig>,
+        models: &'a ModelTable,
         inference_config: &'request InferenceConfig<'a, 'request>,
         clients: &'request InferenceClients<'request>,
         mut candidates: Vec<InferenceResult<'a>>,
@@ -305,7 +308,7 @@ impl MixtureOfNConfig {
 async fn inner_fuse_candidates<'a, 'request>(
     fuser: &'a FuserConfig,
     input: &'request Input,
-    models: &'a HashMap<String, ModelConfig>,
+    models: &'a ModelTable,
     function: &'a FunctionConfig,
     inference_config: &'request InferenceConfig<'a, 'request>,
     clients: &'request InferenceClients<'request>,
@@ -324,7 +327,7 @@ async fn inner_fuse_candidates<'a, 'request>(
         }
         .into());
     }
-    let model_config = models.get(&fuser.inner.model).ok_or_else(|| {
+    let model_config = models.get(&fuser.inner.model).await.ok_or_else(|| {
         Error::new(ErrorDetails::UnknownModel {
             name: fuser.inner.model.clone(),
         })
@@ -517,7 +520,7 @@ mod tests {
         },
         jsonschema_util::JSONSchemaFromPath,
         minijinja_util::tests::get_test_template_config,
-        model::ProviderConfig,
+        model::{ModelConfig, ProviderConfig},
         tool::{ToolCallConfig, ToolChoice},
     };
 
@@ -946,7 +949,9 @@ mod tests {
                     }),
                 )]),
             },
-        )]);
+        )])
+        .try_into()
+        .unwrap();
         let client = Client::new();
         let clickhouse_connection_info = ClickHouseConnectionInfo::Disabled;
         let api_keys = InferenceCredentials::default();
@@ -1027,7 +1032,9 @@ mod tests {
                 },
             );
             map
-        };
+        }
+        .try_into()
+        .unwrap();
         let input = Input {
             system: None,
             messages: vec![],
@@ -1087,7 +1094,9 @@ mod tests {
                 },
             );
             map
-        };
+        }
+        .try_into()
+        .unwrap();
         let input = Input {
             system: None,
             messages: vec![],

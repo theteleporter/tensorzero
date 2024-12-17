@@ -1,12 +1,11 @@
 use reqwest::Client;
 use serde::de::Error as SerdeError;
 use std::collections::HashMap;
+use tokio::sync::RwLock;
 use tracing::instrument;
 use url::Url;
 
 use crate::inference::providers;
-#[cfg(any(test, feature = "e2e_tests"))]
-use crate::inference::providers::dummy::DummyCredentials;
 #[cfg(any(test, feature = "e2e_tests"))]
 use crate::inference::providers::dummy::DummyProvider;
 use crate::inference::providers::google_ai_studio_gemini::GoogleAIStudioGeminiProvider;
@@ -596,7 +595,10 @@ const SHORTHAND_MODEL_PREFIXES: &[&str] = &[
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(try_from = "HashMap<String, ModelConfig>")]
-pub struct ModelTable(HashMap<String, ModelConfig>);
+pub struct ModelTable {
+    pub configured_models: HashMap<String, ModelConfig>,
+    dynamic_models: RwLock<HashMap<String, &'static ModelConfig>>,
+}
 
 impl TryFrom<HashMap<String, ModelConfig>> for ModelTable {
     type Error = String;
@@ -610,20 +612,20 @@ impl TryFrom<HashMap<String, ModelConfig>> for ModelTable {
                 return Err(format!("Model name '{}' contains a reserved prefix", key));
             }
         }
-        Ok(ModelTable(map))
-    }
-}
-
-impl std::ops::Deref for ModelTable {
-    type Target = HashMap<String, ModelConfig>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+        Ok(ModelTable {
+            configured_models: map,
+            dynamic_models: RwLock::new(HashMap::new()),
+        })
     }
 }
 
 impl ModelTable {
-    pub fn get(&self, key: &str) -> Option<&ModelConfig> {
+    pub async fn get(&self, key: &str) -> Option<&ModelConfig> {
+        // First, check if we've already created and cached a dynamic model for this key
+        if let Some(existing) = self.dynamic_models.read().await.get(key) {
+            return Some(existing);
+        }
+
         // Try matching shorthand prefixes
         if let Some(prefix) = SHORTHAND_MODEL_PREFIXES
             .iter()
@@ -632,32 +634,37 @@ impl ModelTable {
             let model_name = match key.strip_prefix(prefix) {
                 Some(name) => name,
                 None => {
-                    tracing::error!("Failed to strip prefix '{}' from model name '{}' This should never happen. Please file a bug report at https://github.com/tensorzero/tensorzero/issues/new", prefix, key);
+                    tracing::error!("Failed to strip prefix '{}' from model name '{}' This should never happen. Please file a bug report", prefix, key);
                     return None;
                 }
             };
-            // Remove the last two characters of the prefix to get the provider type
             let provider_type = &prefix[..prefix.len() - 2];
             let provider_config =
                 match self.get_shorthand_provider_config(provider_type, model_name) {
-                    Ok(provider_config) => provider_config,
-                    Err(e) => return None,
+                    Ok(cfg) => cfg,
+                    Err(e) => {
+                        tracing::error!("Failed to create provider config: {:?}", e);
+                        return None;
+                    }
                 };
+
             let model_config = ModelConfig {
                 routing: vec![provider_type.to_string()],
                 providers: HashMap::from([(provider_type.to_string(), provider_config)]),
             };
-            return Some(&model_config);
+
+            // Leak and store this dynamic config so we can reuse it next time
+            let leaked = Box::leak(Box::new(model_config));
+            let mut guard = self.dynamic_models.write().await;
+            guard.insert(key.to_string(), leaked);
+            return Some(leaked);
         }
 
-        // Try direct lookup (if it's blacklisted, it's not in the table)
-        if let Some(config) = self.0.get(key) {
-            return Some(config);
-        }
-
-        None
+        // Otherwise, try the configured models
+        self.configured_models.get(key)
     }
 
+    // TODO(Viraj): turbo document this function
     fn get_shorthand_provider_config(
         &self,
         provider_type: &str,

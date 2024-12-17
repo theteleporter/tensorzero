@@ -23,7 +23,6 @@ use crate::{
     function::FunctionConfig,
     inference::types::{InferenceResult, InferenceResultChunk, InferenceResultStream, Input},
     minijinja_util::TemplateConfig,
-    model::ModelConfig,
     variant::chat_completion::ChatCompletionConfig,
 };
 
@@ -112,12 +111,12 @@ impl Variant for BestOfNSamplingConfig {
         .into())
     }
 
-    fn validate(
+    async fn validate(
         &self,
         function: &FunctionConfig,
         models: &ModelTable,
         embedding_models: &HashMap<String, EmbeddingModelConfig>,
-        templates: &TemplateConfig,
+        templates: &TemplateConfig<'_>,
         function_name: &str,
         variant_name: &str,
     ) -> Result<(), Error> {
@@ -137,6 +136,7 @@ impl Variant for BestOfNSamplingConfig {
                     function_name,
                     candidate,
                 )
+                .await
                 .map_err(|e| {
                     Error::new(ErrorDetails::InvalidCandidate {
                         variant_name: variant_name.to_string(),
@@ -145,14 +145,17 @@ impl Variant for BestOfNSamplingConfig {
                 })?;
         }
         // Validate the evaluator variant
-        self.evaluator.inner.validate(
-            function,
-            models,
-            embedding_models,
-            templates,
-            function_name,
-            variant_name,
-        )?;
+        self.evaluator
+            .inner
+            .validate(
+                function,
+                models,
+                embedding_models,
+                templates,
+                function_name,
+                variant_name,
+            )
+            .await?;
         Ok(())
     }
 
@@ -255,7 +258,7 @@ impl BestOfNSamplingConfig {
     async fn select_best_candidate<'a, 'request>(
         &'a self,
         input: &Input,
-        models: &'a HashMap<String, ModelConfig>,
+        models: &'a ModelTable,
         inference_config: &'request InferenceConfig<'a, 'request>,
         clients: &'request InferenceClients<'request>,
         candidates: Vec<InferenceResult<'a>>,
@@ -341,7 +344,7 @@ impl BestOfNSamplingConfig {
 async fn inner_select_best_candidate<'a, 'request>(
     evaluator: &'a EvaluatorConfig,
     input: &'request Input,
-    models: &'a HashMap<String, ModelConfig>,
+    models: &'a ModelTable,
     inference_config: &'request InferenceConfig<'a, 'request>,
     clients: &'request InferenceClients<'request>,
     candidates: &[InferenceResult<'request>],
@@ -376,7 +379,7 @@ async fn inner_select_best_candidate<'a, 'request>(
         // Return the selected index and None for the model inference result
         return Ok((Some(selected_index), None));
     }
-    let model_config = models.get(&evaluator.inner.model).ok_or_else(|| {
+    let model_config = models.get(&evaluator.inner.model).await.ok_or_else(|| {
         Error::new(ErrorDetails::UnknownModel {
             name: evaluator.inner.model.clone(),
         })
@@ -654,7 +657,7 @@ mod tests {
             types::{ChatInferenceResult, JsonInferenceResult, Latency},
         },
         minijinja_util::tests::get_test_template_config,
-        model::ProviderConfig,
+        model::{ModelConfig, ProviderConfig},
     };
 
     use super::*;
@@ -1103,7 +1106,9 @@ mod tests {
                     }),
                 )]),
             },
-        )]);
+        )])
+        .try_into()
+        .unwrap();
         let client = Client::new();
         let clickhouse_connection_info = ClickHouseConnectionInfo::Disabled;
         let api_keys = InferenceCredentials::default();
@@ -1184,7 +1189,9 @@ mod tests {
                 },
             );
             map
-        };
+        }
+        .try_into()
+        .unwrap();
         let input = Input {
             system: None,
             messages: vec![],
@@ -1243,7 +1250,9 @@ mod tests {
                 },
             );
             map
-        };
+        }
+        .try_into()
+        .unwrap();
         let input = Input {
             system: None,
             messages: vec![],
@@ -1318,6 +1327,7 @@ mod tests {
                 )]),
             },
         );
+        let big_models = big_models.try_into().unwrap();
 
         let result_big = best_of_n_big_variant
             .select_best_candidate(

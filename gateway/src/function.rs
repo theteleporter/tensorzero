@@ -228,24 +228,26 @@ impl FunctionConfig {
     }
 
     #[instrument(skip_all, fields(function_name = %function_name))]
-    pub fn validate(
+    pub async fn validate(
         &self,
         static_tools: &HashMap<String, StaticToolConfig>,
         models: &ModelTable,
         embedding_models: &HashMap<String, EmbeddingModelConfig>,
-        templates: &TemplateConfig,
+        templates: &TemplateConfig<'_>,
         function_name: &str,
     ) -> Result<(), Error> {
         // Validate each variant
         for (variant_name, variant) in self.variants() {
-            variant.validate(
-                self,
-                models,
-                embedding_models,
-                templates,
-                function_name,
-                variant_name,
-            )?;
+            variant
+                .validate(
+                    self,
+                    models,
+                    embedding_models,
+                    templates,
+                    function_name,
+                    variant_name,
+                )
+                .await?;
         }
         match self {
             FunctionConfig::Chat(params) => {

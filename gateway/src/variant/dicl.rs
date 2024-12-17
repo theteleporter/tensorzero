@@ -108,7 +108,7 @@ impl Variant for DiclConfig {
             &mut inference_params,
         )?;
 
-        let model_config = models.models.get(&self.model).ok_or_else(|| {
+        let model_config = models.models.get(&self.model).await.ok_or_else(|| {
             Error::new(ErrorDetails::UnknownModel {
                 name: self.model.clone(),
             })
@@ -180,7 +180,7 @@ impl Variant for DiclConfig {
             &mut inference_params,
         )?;
 
-        let model_config = models.models.get(&self.model).ok_or_else(|| {
+        let model_config = models.models.get(&self.model).await.ok_or_else(|| {
             Error::new(ErrorDetails::UnknownModel {
                 name: self.model.clone(),
             })
@@ -210,12 +210,12 @@ impl Variant for DiclConfig {
         ))
     }
 
-    fn validate(
+    async fn validate(
         &self,
         _function: &FunctionConfig,
         models: &ModelTable,
         embedding_models: &HashMap<String, EmbeddingModelConfig>,
-        _templates: &TemplateConfig,
+        _templates: &TemplateConfig<'_>,
         function_name: &str,
         variant_name: &str,
     ) -> Result<(), Error> {
@@ -234,7 +234,7 @@ impl Variant for DiclConfig {
             .into());
         }
         // Validate that the generation model and embedding model are valid
-        let model = models.get(&self.model).ok_or_else(|| Error::new(ErrorDetails::Config {
+        let model = models.get(&self.model).await.ok_or_else(|| Error::new(ErrorDetails::Config {
                 message: format!("`functions.{function_name}.variants.{variant_name}`: `model` must be a valid model name"),
             }))?;
         let embedding_model = embedding_models
