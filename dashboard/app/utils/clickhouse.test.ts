@@ -2,6 +2,9 @@ import { expect, test } from "vitest";
 import {
   checkClickhouseConnection,
   queryGoodBooleanMetricData,
+  countGoodBooleanMetricData,
+  queryGoodFloatMetricData,
+  countGoodFloatMetricData,
 } from "./clickhouse";
 
 test("checkClickhouseConnection", async () => {
@@ -16,8 +19,47 @@ test("queryBooleanMetricData", async () => {
     "JsonInference",
     "id",
     true,
-    undefined,
+    undefined
   );
   // The fixture was written to have 41 rows with good boolean metric data that should be returned
   expect(result.length).toBe(41);
+});
+
+test("countGoodBooleanMetricData", async () => {
+  const result = await countGoodBooleanMetricData(
+    "dashboard_fixture_extract_entities",
+    "dashboard_fixture_exact_match",
+    "JsonInference",
+    "id",
+    true
+  );
+  // The fixture should have 41 rows with good boolean metric data
+  expect(result).toBe(41);
+});
+
+test("queryGoodFloatMetricData", async () => {
+  const result = await queryGoodFloatMetricData(
+    "dashboard_fixture_extract_entities",
+    "dashboard_fixture_score",
+    "JsonInference",
+    "id",
+    true,
+    0.8,
+    undefined
+  );
+  // The fixture should have 25 rows with float metric data above 0.8
+  expect(result.length).toBe(25);
+});
+
+test("countGoodFloatMetricData", async () => {
+  const result = await countGoodFloatMetricData(
+    "dashboard_fixture_extract_entities",
+    "dashboard_fixture_score",
+    "JsonInference",
+    "id",
+    true,
+    0.8
+  );
+  // The fixture should have 25 rows with float metric data above 0.8
+  expect(result).toBe(25);
 });
