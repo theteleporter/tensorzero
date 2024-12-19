@@ -56,10 +56,11 @@ repos:
         language: node
         types_or:
           [javascript, jsx, ts, tsx, css, scss, html, json, yaml, markdown]
-        args: ["--write", "--list-different"]
+        args:
+          ['--write', '--list-different', '--config', 'dashboard/.prettierrc']
         additional_dependencies:
           - prettier
-          - "@prettier/plugin-xml"
+          - '@prettier/plugin-xml'
         always_run: true
         exclude: '.*\.ipynb$'
 
@@ -70,8 +71,8 @@ repos:
         types_or: [javascript, jsx, ts, tsx]
         additional_dependencies:
           - eslint
-          - "@typescript-eslint/parser"
-          - "@typescript-eslint/eslint-plugin"
+          - '@typescript-eslint/parser'
+          - '@typescript-eslint/eslint-plugin'
         pass_filenames: false
         always_run: true
 
@@ -95,5 +96,5 @@ repos:
     rev: v0.6.3
     hooks:
       - id: ruff
-        args: ["--extend-select", "I", "--fix"]
+        args: ['--extend-select', 'I', '--fix']
       - id: ruff-format
