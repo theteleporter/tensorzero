@@ -40,7 +40,7 @@ export type ParsedInferenceRow =
 
 export function parseInferenceRows(
   rows: InferenceRow[],
-  tableName: string
+  tableName: string,
 ): ParsedChatInferenceRow[] | ParsedJsonInferenceRow[] {
   if (tableName === "ChatInference") {
     return rows.map((row) => ({
@@ -72,7 +72,7 @@ export type InferenceJoinKey =
   (typeof InferenceJoinKey)[keyof typeof InferenceJoinKey];
 
 function getInferenceTableName(
-  function_config: FunctionConfig
+  function_config: FunctionConfig,
 ): InferenceTableName {
   switch (function_config.type) {
     case "chat":
@@ -106,7 +106,7 @@ function getInferenceJoinKey(metric_config: MetricConfig): InferenceJoinKey {
 
 export async function countInferencesForFunction(
   function_name: string,
-  function_config: FunctionConfig
+  function_config: FunctionConfig,
 ): Promise<number> {
   const inference_table_name = getInferenceTableName(function_config);
   const query = `SELECT COUNT() AS count FROM ${inference_table_name} WHERE function_name = {function_name:String}`;
@@ -121,7 +121,7 @@ export async function countInferencesForFunction(
 
 export async function countFeedbacksForMetric(
   metric_name: string,
-  metric_config: MetricConfig
+  metric_config: MetricConfig,
 ): Promise<number> {
   const metric_table_name = getMetricTableName(metric_config);
   const query = `SELECT COUNT() AS count FROM ${metric_table_name} WHERE metric_name = {metric_name:String}`;
@@ -139,7 +139,7 @@ export async function getCuratedInferences(
   function_config: FunctionConfig,
   metric_name: string,
   metric_config: MetricConfig,
-  max_samples?: number
+  max_samples?: number,
 ) {
   const inference_table_name = getInferenceTableName(function_config);
   const inference_join_key = getInferenceJoinKey(metric_config);
@@ -152,7 +152,7 @@ export async function getCuratedInferences(
         inference_table_name,
         inference_join_key,
         metric_config.optimize === "max",
-        max_samples
+        max_samples,
       );
     default:
       throw new Error(`Unsupported metric type: ${metric_config.type}`);
@@ -163,7 +163,7 @@ export async function countCuratedInferences(
   function_name: string,
   function_config: FunctionConfig,
   metric_name: string,
-  metric_config: MetricConfig
+  metric_config: MetricConfig,
 ) {
   const inference_table_name = getInferenceTableName(function_config);
   const inference_join_key = getInferenceJoinKey(metric_config);
@@ -175,7 +175,7 @@ export async function countCuratedInferences(
         metric_name,
         inference_table_name,
         inference_join_key,
-        metric_config.optimize === "max"
+        metric_config.optimize === "max",
       );
     default:
       throw new Error(`Unsupported metric type: ${metric_config.type}`);
@@ -188,7 +188,7 @@ export async function queryGoodBooleanMetricData(
   inference_table_name: InferenceTableName,
   inference_join_key: InferenceJoinKey,
   maximize: boolean,
-  max_samples: number | undefined
+  max_samples: number | undefined,
 ): Promise<ParsedInferenceRow[]> {
   const comparison_operator = maximize ? "= 1" : "= 0"; // Changed from "IS TRUE"/"IS FALSE"
   const limitClause = max_samples ? `LIMIT ${max_samples}` : "";
@@ -237,7 +237,7 @@ export async function queryGoodFloatMetricData(
   inference_join_key: InferenceJoinKey,
   maximize: boolean,
   threshold: number,
-  max_samples: number | undefined
+  max_samples: number | undefined,
 ): Promise<ParsedInferenceRow[]> {
   const comparison_operator = maximize ? ">" : "<";
   const limitClause = max_samples ? `LIMIT ${max_samples}` : "";
@@ -285,7 +285,7 @@ export async function countGoodBooleanMetricData(
   metric_name: string,
   inference_table_name: InferenceTableName,
   inference_join_key: InferenceJoinKey,
-  maximize: boolean
+  maximize: boolean,
 ): Promise<number> {
   const comparison_operator = maximize ? "= 1" : "= 0"; // Changed from "IS TRUE"/"IS FALSE"
 
@@ -327,13 +327,13 @@ export async function countGoodFloatMetricData(
   inference_table_name: InferenceTableName,
   inference_join_key: InferenceJoinKey,
   maximize: boolean,
-  threshold: number
+  threshold: number,
 ): Promise<number> {
   const comparison_operator = maximize ? ">" : "<";
 
   const query = `
     SELECT
-      COUNT(*) as count
+      toUInt32(COUNT(*)) as count
     FROM
       ${inference_table_name} i
     JOIN
