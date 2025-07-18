@@ -984,7 +984,8 @@ fn resolve_paths(table: DeTable<'_>) -> DeTable<'_> {
                         if let Some(entry) = entry.get_mut(&*literal) {
                             if let DeValue::String(target_string) = entry.get_mut() {
                                 let target_path = Path::new(&**target_string);
-                                let base_path = PathBuf::from("/dummy-path");
+                                // TODO - get this from span_map
+                                let base_path = PathBuf::from("");
                                 *target_string = DeString::Owned(
                                     base_path
                                         .join(target_path)
