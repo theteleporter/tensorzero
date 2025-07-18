@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tensorzero_derive::TensorZeroDeserialize;
+use toml::{Spanned, Table};
 use tracing::instrument;
 
 use crate::config_parser::gateway::{GatewayConfig, UninitializedGatewayConfig};
@@ -39,6 +40,7 @@ use crate::variant::dicl::UninitializedDiclConfig;
 use crate::variant::mixture_of_n::UninitializedMixtureOfNConfig;
 use crate::variant::{Variant, VariantConfig, VariantInfo};
 use std::error::Error as StdError;
+use toml::de::{DeString, DeTable, DeValue};
 
 pub mod gateway;
 pub mod path;
@@ -875,30 +877,181 @@ pub struct ProviderTypesConfig {
     pub gcp_vertex_gemini: Option<GCPProviderTypeConfig>,
 }
 
+#[derive(Debug, Copy, Clone)]
+enum PathComponent {
+    Literal(&'static str),
+    Wildcard,
+}
+
+static TARGET_PATH_COMPONENTS: &[&[PathComponent]] = &[
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("system_schema"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("user_schema"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("assistant_schema"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("output_schema"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("system_schema"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("user_schema"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("assistant_schema"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("output_schema"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("system_instructions"),
+    ],
+];
+
+fn de_value_to_value(value: DeValue<'_>) -> toml::Value {
+    match value {
+        DeValue::String(string) => toml::Value::String(string.to_string()),
+        DeValue::Integer(integer) => toml::Value::Integer(integer.to_string().parse().unwrap()),
+        DeValue::Float(float) => toml::Value::Float(float.to_string().parse().unwrap()),
+        DeValue::Boolean(boolean) => toml::Value::Boolean(boolean),
+        DeValue::Array(array) => toml::Value::Array(
+            array
+                .into_iter()
+                .map(|val| de_value_to_value(val.into_inner()))
+                .collect(),
+        ),
+        DeValue::Datetime(datetime) => toml::Value::Datetime(datetime),
+        DeValue::Table(table) => toml::Value::Table(de_table_to_table(table)),
+    }
+}
+
+fn de_table_to_table(table: DeTable<'_>) -> Table {
+    table
+        .into_iter()
+        .map(|(key, value)| {
+            let key = key.into_inner().to_string();
+            let value = de_value_to_value(value.into_inner());
+            (key, value)
+        })
+        .collect()
+}
+
+fn resolve_paths(table: DeTable<'_>) -> DeTable<'_> {
+    let mut root = DeValue::Table(table);
+    for path in TARGET_PATH_COMPONENTS {
+        let mut targets = vec![(path[0], &path[1..], &mut root)];
+        while let Some((component, tail, entry)) = targets.pop() {
+            if tail.is_empty() {
+                match component {
+                    PathComponent::Literal(literal) => {
+                        let DeValue::Table(entry) = entry else {
+                            panic!("Invalid toml component: {:?}", entry);
+                        };
+                        // Spanned ignores the span for Hash/PartialEq, so we can use a dummy span for the lookup
+                        if let Some(entry) = entry.get_mut(&*literal) {
+                            if let DeValue::String(target_string) = entry.get_mut() {
+                                let target_path = Path::new(&**target_string);
+                                let base_path = PathBuf::from("/dummy-path");
+                                *target_string = DeString::Owned(
+                                    base_path
+                                        .join(target_path)
+                                        .to_str()
+                                        .expect("Path was not valid utf-8")
+                                        .to_owned(),
+                                );
+                            } else {
+                                panic!("Invalid toml component: {:?}", entry);
+                            }
+                        }
+                    }
+                    PathComponent::Wildcard => {
+                        panic!("Path cannot end with a wildcard");
+                    }
+                }
+            } else {
+                match component {
+                    PathComponent::Literal(literal) => {
+                        let DeValue::Table(entry) = entry else {
+                            panic!("Invalid toml component: {:?}", entry);
+                        };
+                        if let Some(entry) = entry.get_mut(&*literal) {
+                            targets.push((tail[0], &tail[1..], entry.get_mut()));
+                        }
+                    }
+                    PathComponent::Wildcard => {
+                        if let DeValue::Table(table) = entry {
+                            for (_key, value) in table.iter_mut() {
+                                targets.push((tail[0], &tail[1..], value.get_mut()));
+                            }
+                        } else {
+                            panic!("Invalid toml component: {:?}", entry);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    match root {
+        DeValue::Table(table) => table,
+        _ => panic!("Root is not a table"),
+    }
+}
+
 impl UninitializedConfig {
     /// Read a file from the file system and parse it as TOML
     fn read_toml_config(path: &Path) -> Result<Option<toml::Table>, Error> {
         if !path.exists() {
             return Ok(None);
         }
-        Ok(Some(
-            std::fs::read_to_string(path)
-                .map_err(|_| {
-                    Error::new(ErrorDetails::Config {
-                        message: format!("Failed to read config file: {}", path.to_string_lossy()),
-                    })
-                })?
-                .parse::<toml::Table>()
-                .map_err(|e| {
-                    Error::new(ErrorDetails::Config {
-                        message: format!(
-                            "Failed to parse config file `{}` as valid TOML: {}",
-                            path.to_string_lossy(),
-                            e
-                        ),
-                    })
-                })?,
-        ))
+        let contents = std::fs::read_to_string(path).map_err(|_| {
+            Error::new(ErrorDetails::Config {
+                message: format!("Failed to read config file: {}", path.to_string_lossy()),
+            })
+        })?;
+        let table = DeTable::parse(&contents).map_err(|e| {
+            Error::new(ErrorDetails::Config {
+                message: format!(
+                    "Failed to parse config file `{}` as valid TOML: {}",
+                    path.to_string_lossy(),
+                    e
+                ),
+            })
+        })?;
+        let table = resolve_paths(table.into_inner());
+        Ok(Some(de_table_to_table(table)))
     }
 }
 
