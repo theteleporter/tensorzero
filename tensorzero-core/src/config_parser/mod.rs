@@ -939,6 +939,36 @@ static TARGET_PATH_COMPONENTS: &[&[PathComponent]] = &[
         PathComponent::Wildcard,
         PathComponent::Literal("system_instructions"),
     ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("system_template"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("user_template"),
+    ],
+    &[
+        PathComponent::Literal("functions"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("assistant_template"),
+    ],
+    &[
+        PathComponent::Literal("evaluations"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("evaluators"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("variants"),
+        PathComponent::Wildcard,
+        PathComponent::Literal("system_instructions"),
+    ],
 ];
 
 fn de_value_to_value(value: DeValue<'_>) -> toml::Value {
@@ -986,13 +1016,24 @@ fn resolve_paths(table: DeTable<'_>) -> DeTable<'_> {
                                 let target_path = Path::new(&**target_string);
                                 // TODO - get this from span_map
                                 let base_path = PathBuf::from("");
-                                *target_string = DeString::Owned(
-                                    base_path
-                                        .join(target_path)
-                                        .to_str()
-                                        .expect("Path was not valid utf-8")
-                                        .to_owned(),
+                                let mut inner_table = DeTable::new();
+                                inner_table.insert(
+                                    Spanned::new(
+                                        0..0,
+                                        Cow::Owned("__tensorzero_remapped_path".to_string()),
+                                    ),
+                                    Spanned::new(
+                                        0..0,
+                                        DeValue::String(Cow::Owned(
+                                            base_path
+                                                .join(target_path)
+                                                .to_str()
+                                                .expect("Path was not valid utf-8")
+                                                .to_string(),
+                                        )),
+                                    ),
                                 );
+                                *entry = Spanned::new(0..0, DeValue::Table(inner_table));
                             } else {
                                 panic!("Invalid toml component: {:?}", entry);
                             }
