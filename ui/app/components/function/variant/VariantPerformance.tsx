@@ -178,7 +178,7 @@ export type VariantPerformanceData = {
   [key: string]: string | number; // Allow date as string and all other fields as numbers
 };
 
-type VariantData = { color: string; name: string };
+import type { VariantData } from "./variant-filter";
 
 type PerformanceDataGroupedByDate = {
   date: string;
