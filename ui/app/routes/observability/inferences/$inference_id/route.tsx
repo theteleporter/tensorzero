@@ -42,7 +42,6 @@ import {
   SectionLayout,
   SectionsGroup,
 } from "~/components/layout/PageLayout";
-import { getDatasetCounts } from "~/utils/clickhouse/datasets.server";
 import { Toaster } from "~/components/ui/toaster";
 import { useToast } from "~/hooks/use-toast";
 import {
@@ -56,8 +55,6 @@ import { HumanFeedbackButton } from "~/components/feedback/HumanFeedbackButton";
 import { HumanFeedbackModal } from "~/components/feedback/HumanFeedbackModal";
 import { HumanFeedbackForm } from "~/components/feedback/HumanFeedbackForm";
 import { logger } from "~/utils/logger";
-import { JSONParseError } from "~/utils/common";
-import { processJson } from "~/utils/syntax-highlighting.server";
 import { useFetcherWithReset } from "~/hooks/use-fetcher-with-reset";
 import { isTensorZeroServerError } from "~/utils/tensorzero";
 
@@ -82,7 +79,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const inferencePromise = queryInferenceById(inference_id);
   const modelInferencesPromise =
     queryModelInferencesByInferenceId(inference_id);
-  const datasetCountsPromise = getDatasetCounts();
   const demonstrationFeedbackPromise = queryDemonstrationFeedbackByInferenceId({
     inference_id,
     page_size: 1, // Only need to know if *any* exist
@@ -108,7 +104,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const [
     inference,
     model_inferences,
-    dataset_counts,
     demonstration_feedback,
     feedback_bounds,
     feedback,
@@ -116,7 +111,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   ] = await Promise.all([
     inferencePromise,
     modelInferencesPromise,
-    datasetCountsPromise,
     demonstrationFeedbackPromise,
     feedbackBoundsPromise,
     feedbackDataPromise,
@@ -131,27 +125,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     });
   }
 
-  const [inferenceParams, toolParams] = await Promise.all([
-    processJson(
-      inference.inference_params,
-      `inference params: ${inference_id}`,
-    ).catch(handleJsonProcessingError),
-    inference.function_type === "chat"
-      ? processJson(
-          inference.tool_params,
-          `tool params: ${inference_id}`,
-        ).catch(handleJsonProcessingError)
-      : Promise.resolve(null),
-  ]);
-
   return {
     inference,
-    inferenceParams,
-    toolParams,
     model_inferences,
     feedback,
     feedback_bounds,
-    dataset_counts,
     hasDemonstration: demonstration_feedback.length > 0,
     newFeedbackId,
     latestFeedbackByMetric,
@@ -169,8 +147,18 @@ export async function action({ request }: Route.ActionArgs) {
     case "addToDataset": {
       const dataset = formData.get("dataset");
       const output = formData.get("output");
-      const inference_id = formData.get("inference_id");
-      if (!dataset || !output || !inference_id) {
+      const inferenceId = formData.get("inference_id");
+      const functionName = formData.get("function_name");
+      const variantName = formData.get("variant_name");
+      const episodeId = formData.get("episode_id");
+      if (
+        !dataset ||
+        !output ||
+        !inferenceId ||
+        !functionName ||
+        !variantName ||
+        !episodeId
+      ) {
         return data<ActionData>(
           { error: "Missing required fields" },
           { status: 400 },
@@ -179,8 +167,11 @@ export async function action({ request }: Route.ActionArgs) {
       try {
         const datapoint = await getTensorZeroClient().createDatapoint(
           dataset.toString(),
-          inference_id.toString(),
+          inferenceId.toString(),
           output.toString() as "inherit" | "demonstration" | "none",
+          functionName.toString(),
+          variantName.toString(),
+          episodeId.toString(),
         );
         return data<ActionData>({
           redirectTo: `/datasets/${dataset.toString()}/datapoint/${datapoint.id}`,
@@ -231,12 +222,9 @@ type ModalType = "human-feedback" | "variant-response" | null;
 export default function InferencePage({ loaderData }: Route.ComponentProps) {
   const {
     inference,
-    inferenceParams,
-    toolParams,
     model_inferences,
     feedback,
     feedback_bounds,
-    dataset_counts,
     hasDemonstration,
     newFeedbackId,
     latestFeedbackByMetric,
@@ -304,6 +292,9 @@ export default function InferencePage({ loaderData }: Route.ComponentProps) {
     formData.append("dataset", dataset);
     formData.append("output", output);
     formData.append("inference_id", inference.id);
+    formData.append("function_name", inference.function_name);
+    formData.append("variant_name", inference.variant_name);
+    formData.append("episode_id", inference.episode_id);
     formData.append("_action", "addToDataset");
     addToDatasetFetcher.submit(formData, { method: "post", action: "." });
   };
@@ -372,7 +363,6 @@ export default function InferencePage({ loaderData }: Route.ComponentProps) {
             isLoading={variantInferenceIsLoading}
           />
           <AddToDatasetButton
-            dataset_counts={dataset_counts}
             onDatasetSelect={handleAddToDataset}
             hasDemonstration={hasDemonstration}
           />
@@ -409,7 +399,10 @@ export default function InferencePage({ loaderData }: Route.ComponentProps) {
       <SectionsGroup>
         <SectionLayout>
           <SectionHeader heading="Input" />
-          <InputSnippet input={inference.input} />
+          <InputSnippet
+            system={inference.input.system}
+            messages={inference.input.messages}
+          />
         </SectionLayout>
 
         <SectionLayout>
@@ -452,18 +445,16 @@ export default function InferencePage({ loaderData }: Route.ComponentProps) {
         <SectionLayout>
           <SectionHeader heading="Inference Parameters" />
           <ParameterCard
-            parameters={inferenceParams.raw}
-            html={inferenceParams.html}
+            parameters={JSON.stringify(inference.inference_params, null, 2)}
           />
         </SectionLayout>
 
         {inference.function_type === "chat" && (
           <SectionLayout>
             <SectionHeader heading="Tool Parameters" />
-            {toolParams && (
+            {inference.tool_params && (
               <ParameterCard
-                parameters={toolParams.raw}
-                html={inferenceParams.html}
+                parameters={JSON.stringify(inference.tool_params, null, 2)}
               />
             )}
           </SectionLayout>
@@ -562,13 +553,4 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       </div>
     </div>
   );
-}
-
-function handleJsonProcessingError(error: unknown): never {
-  if (error instanceof JSONParseError) {
-    throw data(error.message, { status: 400 });
-  }
-  throw data(`Server error while processing JSON. Please contact support.`, {
-    status: 500,
-  });
 }

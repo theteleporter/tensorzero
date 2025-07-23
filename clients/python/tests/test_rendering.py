@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 from tensorzero import (
     AsyncTensorZeroGateway,
@@ -88,6 +90,9 @@ def test_sync_render_samples_success(embedded_sync_client: TensorZeroGateway):
                     parallel_tool_calls=False,
                 ),
                 output_schema=None,
+                dispreferred_outputs=[[Text(text="goodbye")]],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             ),
             StoredInference(
                 type="json",
@@ -114,6 +119,13 @@ def test_sync_render_samples_success(embedded_sync_client: TensorZeroGateway):
                     "properties": {"answer": {"type": "string"}},
                 },
                 tool_params=None,
+                dispreferred_outputs=[
+                    JsonInferenceOutput(
+                        parsed={"answer": "Kyoto"}, raw='{"answer": "Kyoto"}'
+                    )
+                ],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             ),
         ],
         variants={"basic_test": "test", "json_success": "test"},
@@ -160,6 +172,11 @@ def test_sync_render_samples_success(embedded_sync_client: TensorZeroGateway):
     assert content[2].type == "unknown"
     assert content[2].data == [{"woo": "hoo"}]
     output = rendered_samples[0].output
+    dispreferred_outputs = rendered_samples[0].dispreferred_outputs
+    assert len(dispreferred_outputs) == 1
+    assert len(dispreferred_outputs[0]) == 1
+    assert isinstance(dispreferred_outputs[0][0], Text)
+    assert dispreferred_outputs[0][0].text == "goodbye"
 
     message = messages[2]
     assert message.role == "user"
@@ -188,8 +205,6 @@ def test_sync_render_samples_success(embedded_sync_client: TensorZeroGateway):
     # TODO: test this
     # assert tool_params.tool_choice == "auto"
     assert not tool_params.parallel_tool_calls
-    assert rendered_samples[0].output_schema is None
-
     json_inference = rendered_samples[1]
     assert json_inference.function_name == "json_success"
     assert json_inference.episode_id is not None
@@ -230,6 +245,7 @@ Example Response:
         "type": "object",
         "properties": {"answer": {"type": "string"}},
     }
+    assert json_inference.dispreferred_outputs == [[Text(text='{"answer": "Kyoto"}')]]
 
 
 def test_sync_render_samples_nonexistent_function(
@@ -260,6 +276,9 @@ def test_sync_render_samples_nonexistent_function(
                     parallel_tool_calls=False,
                 ),
                 output_schema=None,
+                dispreferred_outputs=[],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
         ],
         variants={},
@@ -296,6 +315,9 @@ def test_sync_render_samples_unspecified_function(
                     parallel_tool_calls=False,
                 ),
                 output_schema=None,
+                dispreferred_outputs=[],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
         ],
         variants={},
@@ -331,6 +353,9 @@ def test_sync_render_samples_no_variant(embedded_sync_client: TensorZeroGateway)
                         parallel_tool_calls=False,
                     ),
                     output_schema=None,
+                    dispreferred_outputs=[],
+                    tags={},
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                 )
             ],
             variants={"basic_test": "non_existent_variant"},
@@ -368,6 +393,9 @@ def test_sync_render_samples_missing_variable(
                     parallel_tool_calls=False,
                 ),
                 output_schema=None,
+                dispreferred_outputs=[],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
         ],
         variants={"basic_test": "test"},
@@ -453,6 +481,9 @@ async def test_async_render_samples_success(
                     parallel_tool_calls=False,
                 ),
                 output_schema=None,
+                dispreferred_outputs=[],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             ),
             StoredInference(
                 type="json",
@@ -480,6 +511,9 @@ async def test_async_render_samples_success(
                     "properties": {"answer": {"type": "string"}},
                 },
                 tool_params=None,
+                dispreferred_outputs=[],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             ),
         ],
         variants={"basic_test": "test", "json_success": "test"},
@@ -628,6 +662,9 @@ async def test_async_render_samples_nonexistent_function(
                     parallel_tool_calls=False,
                 ),
                 output_schema=None,
+                dispreferred_outputs=[],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
         ],
         variants={},
@@ -665,6 +702,9 @@ async def test_async_render_samples_unspecified_function(
                     parallel_tool_calls=False,
                 ),
                 output_schema=None,
+                dispreferred_outputs=[],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
         ],
         variants={},
@@ -703,6 +743,9 @@ async def test_async_render_samples_no_variant(
                         parallel_tool_calls=False,
                     ),
                     output_schema=None,
+                    dispreferred_outputs=[],
+                    tags={},
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                 )
             ],
             variants={"basic_test": "non_existent_variant"},
@@ -741,6 +784,9 @@ async def test_async_render_samples_missing_variable(
                     parallel_tool_calls=False,
                 ),
                 output_schema=None,
+                dispreferred_outputs=[],
+                tags={},
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
         ],
         variants={"basic_test": "test"},

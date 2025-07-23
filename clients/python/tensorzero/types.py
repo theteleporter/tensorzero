@@ -120,8 +120,10 @@ class ToolCall(ContentBlock):
 
 @dataclass
 class Thought(ContentBlock):
-    text: str
+    text: Optional[str] = None
     type: str = "thought"
+    signature: Optional[str] = None
+    _internal_provider_type: Optional[str] = None
 
 
 @dataclass
@@ -237,7 +239,9 @@ def parse_content_block(block: Dict[str, Any]) -> ContentBlock:
             type=block_type,
         )
     elif block_type == "thought":
-        return Thought(text=block["text"], type=block_type)
+        return Thought(
+            text=block["text"], signature=block.get("signature"), type=block_type
+        )
     elif block_type == "unknown":
         return UnknownContentBlock(
             data=block["data"], model_provider_name=block.get("model_provider_name")
@@ -278,6 +282,8 @@ class ThoughtChunk(ContentBlockChunk):
     id: str
     text: str
     type: str = "thought"
+    signature: Optional[str] = None
+    _internal_provider_type: Optional[str] = None
 
 
 @dataclass
@@ -306,13 +312,15 @@ InferenceChunk = Union[ChatChunk, JsonChunk]
 class VariantExtraBody(TypedDict):
     variant_name: str
     pointer: str
-    value: Any
+    value: NotRequired[Any]
+    delete: NotRequired[bool]
 
 
 class ProviderExtraBody(TypedDict):
     model_provider_name: str
     pointer: str
-    value: Any
+    value: NotRequired[Any]
+    delete: NotRequired[bool]
 
 
 ExtraBody = Union[VariantExtraBody, ProviderExtraBody]
@@ -542,6 +550,21 @@ class BooleanMetricNode(BooleanMetricFilter):
 
 
 @dataclass
+class TagFilter(InferenceFilterTreeNode):
+    key: str
+    value: str
+    comparison_operator: Literal["=", "!="]
+    type: str = "tag"
+
+
+@dataclass
+class TimeFilter(InferenceFilterTreeNode):
+    time: str  # RFC 3339 timestamp
+    comparison_operator: Literal["<", "<=", "=", ">", ">=", "!="]
+    type: str = "time"
+
+
+@dataclass
 class AndFilter(InferenceFilterTreeNode):
     children: List[InferenceFilterTreeNode]
     type: str = "and"
@@ -590,3 +613,10 @@ class NotNode(NotFilter):
             stacklevel=2,
         )
         super().__init__(*args, **kwargs)
+
+
+@dataclass
+class OrderBy:
+    by: Literal["timestamp", "metric"]
+    name: Optional[str] = None
+    direction: Literal["ASC", "DESC"] = "DESC"

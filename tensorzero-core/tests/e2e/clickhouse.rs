@@ -3,10 +3,8 @@
 use std::cell::Cell;
 use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
 
 use paste::paste;
-use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::json;
 use tensorzero_core::clickhouse::migration_manager::migration_trait::Migration;
@@ -30,9 +28,9 @@ use tensorzero_core::clickhouse::migration_manager::{
     self, make_all_migrations, MigrationRecordDatabaseInsert,
 };
 use tensorzero_core::clickhouse::test_helpers::{get_clickhouse, CLICKHOUSE_URL};
-use tensorzero_core::clickhouse::ClickHouseConnectionInfo;
+use tensorzero_core::clickhouse::{make_clickhouse_http_client, ClickHouseConnectionInfo};
 
-struct DeleteDbOnDrop {
+pub struct DeleteDbOnDrop {
     database: String,
     client: ClickHouseConnectionInfo,
     allow_db_missing: bool,
@@ -71,7 +69,7 @@ impl Drop for DeleteDbOnDrop {
 /// happen even if the test panics).
 /// This helps to reduce peak disk usage on CI.
 /// If `allow_db_missing` is true, then we'll use 'DROP DATABASE IF EXISTS' instead of 'DROP DATABASE'
-fn get_clean_clickhouse(allow_db_missing: bool) -> (ClickHouseConnectionInfo, DeleteDbOnDrop) {
+pub fn get_clean_clickhouse(allow_db_missing: bool) -> (ClickHouseConnectionInfo, DeleteDbOnDrop) {
     let database = format!(
         "tensorzero_e2e_tests_migration_manager_{}",
         Uuid::now_v7().simple()
@@ -83,15 +81,7 @@ fn get_clean_clickhouse(allow_db_missing: bool) -> (ClickHouseConnectionInfo, De
     let clickhouse = ClickHouseConnectionInfo::Production {
         database_url: SecretString::from(clickhouse_url.to_string()),
         database: database.clone(),
-        // This is a hack to work around an issue with ClickHouse Cloud where long-lived connections
-        // are abruptly closed by the server.
-        // If it occurs again, re-enable this line.
-        // client: Client::builder().pool_max_idle_per_host(0).build().unwrap(),
-        // See https://github.com/ClickHouse/clickhouse-rs/blob/abf7448e54261c586be849c48291b9321f506b2f/src/http_client.rs#L45
-        client: Client::builder()
-            .pool_idle_timeout(Duration::from_secs(3))
-            .build()
-            .unwrap(),
+        client: make_clickhouse_http_client().unwrap(),
     };
     (
         clickhouse.clone(),
@@ -162,6 +152,7 @@ async fn count_table_rows(clickhouse: &ClickHouseConnectionInfo, table: &str) ->
         .run_query_synchronous_no_params(format!("SELECT count(*) FROM {table}"))
         .await
         .unwrap()
+        .response
         .trim()
         .parse()
         .unwrap()
@@ -355,7 +346,8 @@ async fn run_migration_0020_with_data<R: Future<Output = bool>, F: FnOnce() -> R
         .await
         .unwrap();
 
-    let sample_chat_row_json = serde_json::from_str::<serde_json::Value>(&sample_chat_row).unwrap();
+    let sample_chat_row_json =
+        serde_json::from_str::<serde_json::Value>(&sample_chat_row.response).unwrap();
     let sample_chat_id = sample_chat_row_json["id_uint"].as_str().unwrap();
     let sample_chat_episode_id = sample_chat_row_json["episode_id_uint"].as_str().unwrap();
 
@@ -368,10 +360,10 @@ async fn run_migration_0020_with_data<R: Future<Output = bool>, F: FnOnce() -> R
         .await
         .unwrap();
 
-    println!("Matching chat by id: `{matching_chat_by_id}`");
+    println!("Matching chat by id: `{}`", matching_chat_by_id.response);
 
     let matching_chat_by_id_json =
-        serde_json::from_str::<serde_json::Value>(&matching_chat_by_id).unwrap();
+        serde_json::from_str::<serde_json::Value>(&matching_chat_by_id.response).unwrap();
     assert_eq!(
         matching_chat_by_id_json["episode_id_uint"]
             .as_str()
@@ -387,7 +379,7 @@ async fn run_migration_0020_with_data<R: Future<Output = bool>, F: FnOnce() -> R
         .unwrap();
 
     let matching_chat_by_episode_id_json =
-        serde_json::from_str::<serde_json::Value>(&matching_chat_by_episode_id).unwrap();
+        serde_json::from_str::<serde_json::Value>(&matching_chat_by_episode_id.response).unwrap();
     assert_eq!(
         matching_chat_by_episode_id_json["id_uint"]
             .as_str()
@@ -402,7 +394,8 @@ async fn run_migration_0020_with_data<R: Future<Output = bool>, F: FnOnce() -> R
         .await
         .unwrap();
 
-    let sample_json_row_json = serde_json::from_str::<serde_json::Value>(&sample_json_row).unwrap();
+    let sample_json_row_json =
+        serde_json::from_str::<serde_json::Value>(&sample_json_row.response).unwrap();
     let sample_json_id = sample_json_row_json["id_uint"].as_str().unwrap();
     let sample_json_episode_id = sample_json_row_json["episode_id_uint"].as_str().unwrap();
 
@@ -414,7 +407,7 @@ async fn run_migration_0020_with_data<R: Future<Output = bool>, F: FnOnce() -> R
         .unwrap();
 
     let matching_json_by_id_json =
-        serde_json::from_str::<serde_json::Value>(&matching_json_by_id).unwrap();
+        serde_json::from_str::<serde_json::Value>(&matching_json_by_id.response).unwrap();
     assert_eq!(
         matching_json_by_id_json["episode_id_uint"]
             .as_str()
@@ -430,7 +423,7 @@ async fn run_migration_0020_with_data<R: Future<Output = bool>, F: FnOnce() -> R
         .unwrap();
 
     let matching_json_by_episode_id_json =
-        serde_json::from_str::<serde_json::Value>(&matching_json_by_episode_id).unwrap();
+        serde_json::from_str::<serde_json::Value>(&matching_json_by_episode_id.response).unwrap();
     assert_eq!(
         matching_json_by_episode_id_json["id_uint"]
             .as_str()
@@ -497,7 +490,10 @@ async fn test_rollback_helper(migration_num: usize, logs_contain: fn(&str) -> bo
 invoke_all_separate_tests!(
     test_rollback_helper,
     test_rollback_up_to_migration_index_,
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+    [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+        25, 26
+    ]
 );
 
 #[tokio::test(flavor = "multi_thread")]
@@ -669,7 +665,7 @@ async fn test_clickhouse_migration_manager() {
         // for each element in the array.
         [
             0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-            24
+            24, 25, 26
         ]
     );
     let rows = get_all_migration_records(&clickhouse).await;
@@ -720,6 +716,7 @@ async fn get_all_migration_records(
         )
         .await
         .unwrap()
+        .response
         .lines()
     {
         rows.push(serde_json::from_str::<MigrationRecordDatabaseInsert>(row).unwrap());
@@ -748,6 +745,34 @@ async fn test_bad_clickhouse_write() {
 async fn test_clean_clickhouse_start() {
     let (clickhouse, _cleanup_db) = get_clean_clickhouse(false);
     migration_manager::run(&clickhouse).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_deployment_id_oldest() {
+    let (clickhouse, _cleanup_db) = get_clean_clickhouse(false);
+    migration_manager::run(&clickhouse).await.unwrap();
+    // Add a row to the DeploymentID table and make sure that it isn't returned
+    let new_deployment_id = "foo";
+    clickhouse
+        .write(
+            &[serde_json::json!({
+                "deployment_id": new_deployment_id,
+            })],
+            "DeploymentID",
+        )
+        .await
+        .unwrap();
+    // Run a query that gets the newest deployment ID but since it's final it shouldn't be foo
+    let deployment_id = clickhouse
+        .run_query_synchronous_no_params(
+            "SELECT deployment_id FROM DeploymentID FINAL ORDER BY created_at DESC LIMIT 1"
+                .to_string(),
+        )
+        .await
+        .unwrap()
+        .response;
+
+    assert_ne!(deployment_id, new_deployment_id);
 }
 
 #[tokio::test(flavor = "multi_thread")]

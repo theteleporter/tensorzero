@@ -5,11 +5,27 @@ import httpx
 
 from .client import AsyncTensorZeroGateway, BaseTensorZeroGateway, TensorZeroGateway
 from .tensorzero import (
+    BestOfNSamplingConfig,
+    ChainOfThoughtConfig,
+    ChatCompletionConfig,
+    Config,
     Datapoint,
+    DiclConfig,
+    FireworksSFTConfig,
+    FunctionConfigChat,
+    FunctionConfigJson,
+    FunctionsConfig,
+    GCPVertexGeminiSFTConfig,
+    MixtureOfNConfig,
+    OpenAISFTConfig,
+    OptimizationJobHandle,
+    OptimizationJobInfo,
+    OptimizationJobStatus,
     RenderedSample,
     ResolvedInput,
     ResolvedInputMessage,
     StoredInference,
+    VariantsConfig,
 )
 from .tensorzero import (
     _start_http_gateway as _start_http_gateway,
@@ -45,16 +61,19 @@ from .types import (
     Message,
     NotFilter,
     NotNode,  # DEPRECATED
+    OrderBy,
     OrFilter,
     OrNode,  # DEPRECATED
     RawText,
     System,
+    TagFilter,
     TensorZeroError,
     TensorZeroInternalError,
     Text,
     TextChunk,
     Thought,
     ThoughtChunk,
+    TimeFilter,
     Tool,
     ToolCall,
     ToolCallChunk,
@@ -70,6 +89,9 @@ RenderedStoredInference = RenderedSample  # DEPRECATED: use RenderedSample inste
 ChatDatapoint = Datapoint.Chat
 JsonDatapoint = Datapoint.Json
 
+OptimizationConfig = t.Union[OpenAISFTConfig, FireworksSFTConfig]
+ChatInferenceOutput = t.List[ContentBlock]
+
 
 __all__ = [
     "AndFilter",
@@ -83,6 +105,7 @@ __all__ = [
     "ChatDatapointInsert",
     "ChatInferenceDatapointInput",  # DEPRECATED
     "ChatInferenceResponse",
+    "Config",
     "ContentBlock",
     "Datapoint",
     "DynamicEvaluationRunEpisodeResponse",
@@ -94,6 +117,15 @@ __all__ = [
     "FinishReason",
     "FloatMetricFilter",
     "FloatMetricNode",  # DEPRECATED
+    "FunctionsConfig",
+    "FunctionConfigChat",
+    "FunctionConfigJson",
+    "VariantsConfig",
+    "ChatCompletionConfig",
+    "BestOfNSamplingConfig",
+    "DiclConfig",
+    "MixtureOfNConfig",
+    "ChainOfThoughtConfig",
     "ImageBase64",
     "ImageUrl",
     "InferenceChunk",
@@ -110,13 +142,22 @@ __all__ = [
     "Message",
     "NotFilter",
     "NotNode",  # DEPRECATED
+    "OrderBy",
     "OrFilter",
     "OrNode",  # DEPRECATED
+    "OptimizationJobHandle",
+    "OptimizationJobInfo",
+    "OptimizationJobStatus",
+    "FireworksSFTConfig",
+    "GCPVertexGeminiSFTConfig",
+    "OpenAISFTConfig",
+    "OptimizationConfig",
     "patch_openai_client",
     "RawText",
     "RenderedStoredInference",  # DEPRECATED
     "RenderedSample",
     "System",
+    "TagFilter",
     "TensorZeroError",
     "TensorZeroGateway",
     "TensorZeroInternalError",
@@ -124,6 +165,7 @@ __all__ = [
     "TextChunk",
     "Thought",
     "ThoughtChunk",
+    "TimeFilter",
     "Tool",
     "ToolChoice",
     "ToolParams",

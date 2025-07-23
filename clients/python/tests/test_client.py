@@ -298,24 +298,124 @@ async def test_async_client_build_embedded_sync():
 
 
 @pytest.mark.asyncio
+async def test_async_thought_input(async_client: AsyncTensorZeroGateway):
+    result = await async_client.inference(
+        model_name="dummy::echo_request_messages",
+        input={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "thought",
+                            "text": "my_first_thought",
+                            "signature": "my_first_signature",
+                        },
+                        Thought(
+                            text="my_second_thought",
+                            signature="my_second_signature",
+                            _internal_provider_type="dummy",
+                        ),
+                        Thought(
+                            text="my_discarded_thought",
+                            signature="my_discarded_signature",
+                            _internal_provider_type="wrong_provider_type",
+                        ),
+                    ],
+                }
+            ],
+        },
+        tags={"key": "value"},
+    )
+    assert isinstance(result, ChatInferenceResponse)
+    assert len(result.content) == 1
+    assert isinstance(result.content[0], Text)
+    # The last thought should be discarded, since '_internal_provider_type' does not match
+    assert (
+        result.content[0].text
+        == '{"system":null,"messages":[{"role":"user","content":[{"type":"thought","text":"my_first_thought","signature":"my_first_signature"},{"type":"thought","text":"my_second_thought","signature":"my_second_signature","_internal_provider_type":"dummy"}]}]}'
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_thought_signature_only_input(async_client: AsyncTensorZeroGateway):
+    result = await async_client.inference(
+        model_name="dummy::echo_request_messages",
+        input={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "thought",
+                            "signature": "my_first_signature",
+                        },
+                        Thought(signature="my_second_signature"),
+                    ],
+                }
+            ],
+        },
+        tags={"key": "value"},
+    )
+    assert isinstance(result, ChatInferenceResponse)
+    assert len(result.content) == 1
+    assert isinstance(result.content[0], Text)
+    assert (
+        result.content[0].text
+        == '{"system":null,"messages":[{"role":"user","content":[{"type":"thought","text":null,"signature":"my_first_signature"},{"type":"thought","text":null,"signature":"my_second_signature"}]}]}'
+    )
+
+
+def test_display_thought():
+    t1 = Thought(signature="my_signature")
+    assert (
+        str(t1)
+        == "Thought(text=None, type='thought', signature='my_signature', _internal_provider_type=None)"
+    )
+    assert (
+        repr(t1)
+        == "Thought(text=None, type='thought', signature='my_signature', _internal_provider_type=None)"
+    )
+
+    t2 = Thought(text="my_text", signature="my_signature")
+    assert (
+        str(t2)
+        == "Thought(text='my_text', type='thought', signature='my_signature', _internal_provider_type=None)"
+    )
+    assert (
+        repr(t2)
+        == "Thought(text='my_text', type='thought', signature='my_signature', _internal_provider_type=None)"
+    )
+
+    t3 = Thought(text="my_text")
+    assert (
+        str(t3)
+        == "Thought(text='my_text', type='thought', signature=None, _internal_provider_type=None)"
+    )
+    assert (
+        repr(t3)
+        == "Thought(text='my_text', type='thought', signature=None, _internal_provider_type=None)"
+    )
+
+
+@pytest.mark.asyncio
 async def test_async_reasoning_inference(async_client: AsyncTensorZeroGateway):
     result = await async_client.inference(
-        function_name="basic_test",
-        variant_name="reasoner",
+        model_name="dummy::reasoner_with_signature",
         input={
-            "system": {"assistant_name": "Alfred Pennyworth"},
             "messages": [{"role": "user", "content": "Hello"}],
         },
         tags={"key": "value"},
     )
     assert isinstance(result, ChatInferenceResponse)
-    assert result.variant_name == "reasoner"
+    assert result.variant_name == "dummy::reasoner_with_signature"
     assert result.original_response is None
     content = result.content
     assert len(content) == 2
     assert isinstance(content[0], Thought)
     assert content[0].type == "thought"
     assert content[0].text == "hmmm"
+    assert content[0].signature == "my_signature"
     assert isinstance(content[1], Text)
     assert content[1].type == "text"
     assert (
@@ -524,6 +624,7 @@ async def test_async_reasoning_inference_streaming(
             assert chunk.content[0].type == "thought"
             assert isinstance(chunk.content[0], ThoughtChunk)
             assert chunk.content[0].text == expected_thinking[i]
+            assert chunk.content[0].signature is None
         elif i < len(expected_thinking) + len(expected_text):
             assert len(chunk.content) == 1
             assert chunk.content[0].type == "text"
@@ -557,10 +658,7 @@ async def test_async_inference_streaming_nonexistent_function(
             pass
 
     assert exc_info.value.status_code == 404
-    assert (
-        str(exc_info.value)
-        == 'TensorZeroError (status code 404): {"error":"Unknown function: does_not_exist"}'
-    )
+    assert '"error":"Unknown function: does_not_exist"' in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -930,7 +1028,32 @@ async def test_async_feedback_invalid_input(async_client: AsyncTensorZeroGateway
 
 
 @pytest.mark.asyncio
-async def test_async_tensorzero_error(async_client: AsyncTensorZeroGateway):
+async def test_async_tensorzero_error_http():
+    async_client = AsyncTensorZeroGateway.build_http(
+        gateway_url="http://localhost:3000",
+        verbose_errors=True,
+        async_setup=False,
+    )
+    assert isinstance(async_client, AsyncTensorZeroGateway)
+    with pytest.raises(TensorZeroError) as excinfo:
+        await async_client.inference(
+            function_name="not_a_function", input={"messages": []}
+        )
+
+    assert (
+        str(excinfo.value)
+        == 'TensorZeroError (status code 404): {"error":"Unknown function: not_a_function","error_json":{"UnknownFunction":{"name":"not_a_function"}}}'
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_tensorzero_error_embedded():
+    async_client = AsyncTensorZeroGateway.build_embedded(
+        config_file=TEST_CONFIG_FILE,
+        clickhouse_url="http://chuser:chpassword@localhost:8123/tensorzero-python-e2e",
+        async_setup=False,
+    )
+    assert isinstance(async_client, AsyncTensorZeroGateway)
     with pytest.raises(TensorZeroError) as excinfo:
         await async_client.inference(
             function_name="not_a_function", input={"messages": []}
@@ -1966,7 +2089,25 @@ def test_sync_feedback_invalid_input(sync_client: TensorZeroGateway):
         )
 
 
-def test_sync_tensorzero_error(sync_client: TensorZeroGateway):
+def test_sync_tensorzero_error_http():
+    sync_client = TensorZeroGateway.build_http(
+        gateway_url="http://localhost:3000",
+        verbose_errors=True,
+    )
+    with pytest.raises(TensorZeroError) as excinfo:
+        sync_client.inference(function_name="not_a_function", input={"messages": []})
+
+    assert (
+        str(excinfo.value)
+        == 'TensorZeroError (status code 404): {"error":"Unknown function: not_a_function","error_json":{"UnknownFunction":{"name":"not_a_function"}}}'
+    )
+
+
+def test_sync_tensorzero_error_embedded():
+    sync_client = TensorZeroGateway.build_embedded(
+        config_file=TEST_CONFIG_FILE,
+        clickhouse_url="http://chuser:chpassword@localhost:8123/tensorzero-python-e2e",
+    )
     with pytest.raises(TensorZeroError) as excinfo:
         sync_client.inference(function_name="not_a_function", input={"messages": []})
 
@@ -2244,6 +2385,26 @@ def test_extra_body_types(sync_client: TensorZeroGateway):
                 model_provider_name="tensorzero::model_name::gpt-4o-mini-2024-07-18::provider_name::openai",
                 pointer="/stop",
                 value="Potato",
+            ),
+            ProviderExtraBody(
+                model_provider_name="tensorzero::model_name::gpt-4o-mini-2024-07-18::provider_name::openai",
+                pointer="/should_be_deleted_provider",
+                value=2,
+            ),
+            ProviderExtraBody(
+                model_provider_name="tensorzero::model_name::gpt-4o-mini-2024-07-18::provider_name::openai",
+                pointer="/should_be_deleted_provider",
+                delete=True,
+            ),
+            VariantExtraBody(
+                variant_name="openai",
+                pointer="/should_be_deleted_variant",
+                value=2,
+            ),
+            VariantExtraBody(
+                variant_name="openai",
+                pointer="/should_be_deleted_variant",
+                delete=True,
             ),
         ],
     )

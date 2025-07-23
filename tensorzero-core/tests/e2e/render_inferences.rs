@@ -1,3 +1,4 @@
+use chrono::Utc;
 use object_store::path::Path;
 use serde_json::json;
 use std::collections::HashMap;
@@ -55,6 +56,9 @@ pub async fn test_render_samples_no_function() {
         episode_id: Uuid::now_v7(),
         inference_id: Uuid::now_v7(),
         tool_params: ToolCallConfigDatabaseInsert::default(),
+        timestamp: Utc::now(),
+        dispreferred_outputs: vec![],
+        tags: HashMap::from([("test_key".to_string(), "test_value".to_string())]),
     })];
 
     let rendered_inferences = client
@@ -88,6 +92,9 @@ pub async fn test_render_samples_no_variant() {
         episode_id: Uuid::now_v7(),
         inference_id: Uuid::now_v7(),
         tool_params: ToolCallConfigDatabaseInsert::default(),
+        timestamp: Utc::now(),
+        dispreferred_outputs: vec![],
+        tags: HashMap::new(),
     })];
 
     let error = client
@@ -129,6 +136,9 @@ pub async fn test_render_samples_missing_variable() {
         episode_id: Uuid::now_v7(),
         inference_id: Uuid::now_v7(),
         tool_params: ToolCallConfigDatabaseInsert::default(),
+        timestamp: Utc::now(),
+        dispreferred_outputs: vec![],
+        tags: HashMap::new(),
     })];
 
     let rendered_inferences = client
@@ -165,6 +175,9 @@ pub async fn test_render_samples_normal() {
             episode_id: Uuid::now_v7(),
             inference_id: Uuid::now_v7(),
             tool_params: ToolCallConfigDatabaseInsert::default(),
+            timestamp: Utc::now(),
+            dispreferred_outputs: vec![],
+            tags: HashMap::new(),
         }),
         StoredInference::Json(StoredJsonInference {
             function_name: "json_success".to_string(),
@@ -185,6 +198,12 @@ pub async fn test_render_samples_normal() {
             episode_id: Uuid::now_v7(),
             inference_id: Uuid::now_v7(),
             output_schema: json!({}), // This should be taken as-is
+            timestamp: Utc::now(),
+            dispreferred_outputs: vec![JsonInferenceOutput {
+                parsed: Some(json!({})),
+                raw: Some("{}".to_string()), // This should not be validated
+            }],
+            tags: HashMap::new(),
         }),
         StoredInference::Chat(StoredChatInference {
             function_name: "weather_helper".to_string(),
@@ -217,6 +236,11 @@ pub async fn test_render_samples_normal() {
                 tool_choice: ToolChoice::Auto,
                 parallel_tool_calls: None,
             },
+            timestamp: Utc::now(),
+            dispreferred_outputs: vec![vec![ContentBlockChatOutput::Text(Text {
+                text: "Hello, world!".to_string(),
+            })]],
+            tags: HashMap::new(),
         }),
         StoredInference::Chat(StoredChatInference {
             function_name: "basic_test".to_string(),
@@ -253,6 +277,9 @@ pub async fn test_render_samples_normal() {
             episode_id: Uuid::now_v7(),
             inference_id: Uuid::now_v7(),
             tool_params: ToolCallConfigDatabaseInsert::default(),
+            timestamp: Utc::now(),
+            dispreferred_outputs: vec![],
+            tags: HashMap::new(),
         }),
     ];
 
@@ -320,6 +347,13 @@ pub async fn test_render_samples_normal() {
     };
     assert_eq!(output_text.text, "{}");
 
+    // Check the dispreferred outputs
+    assert_eq!(second_inference.dispreferred_outputs.len(), 1);
+    let ContentBlockChatOutput::Text(output_text) = &second_inference.dispreferred_outputs[0][0]
+    else {
+        panic!("Expected text output");
+    };
+    assert_eq!(output_text.text, "{}");
     // Check other fields
     assert!(second_inference.tool_params.is_none());
     assert!(second_inference.output_schema.is_some());
@@ -355,6 +389,13 @@ pub async fn test_render_samples_normal() {
     assert_eq!(tool_call.name, Some("get_temperature".to_string()));
     assert_eq!(tool_call.arguments, Some(json!({"location": "Tokyo"})));
 
+    // Check the dispreferred outputs
+    assert_eq!(third_inference.dispreferred_outputs.len(), 1);
+    let ContentBlockChatOutput::Text(output_text) = &third_inference.dispreferred_outputs[0][0]
+    else {
+        panic!("Expected text output");
+    };
+    assert_eq!(output_text.text, "Hello, world!");
     // Check other fields
     assert!(third_inference.tool_params.is_some());
     assert!(third_inference.output_schema.is_none());
@@ -406,6 +447,7 @@ pub async fn test_render_samples_template_no_schema() {
     let stored_inferences = vec![StoredInference::Chat(StoredChatInference {
         function_name: "basic_test_template_no_schema".to_string(),
         variant_name: "test".to_string(),
+        timestamp: Utc::now(),
         input: ResolvedInput {
             system: Some("My system message".into()),
             messages: vec![
@@ -437,6 +479,8 @@ pub async fn test_render_samples_template_no_schema() {
         episode_id: Uuid::now_v7(),
         inference_id: Uuid::now_v7(),
         tool_params: ToolCallConfigDatabaseInsert::default(),
+        dispreferred_outputs: vec![],
+        tags: HashMap::new(),
     })];
 
     let rendered_inferences = client
@@ -541,6 +585,7 @@ pub async fn test_render_datapoints_no_function() {
         is_deleted: false,
         source_inference_id: None,
         staled_at: None,
+        is_custom: false,
     })];
 
     let rendered_samples = client
@@ -579,6 +624,7 @@ pub async fn test_render_datapoints_no_variant() {
         is_deleted: false,
         source_inference_id: None,
         staled_at: None,
+        is_custom: false,
     })];
 
     let error = client
@@ -625,6 +671,7 @@ pub async fn test_render_datapoints_missing_variable() {
         is_deleted: false,
         source_inference_id: None,
         staled_at: None,
+        is_custom: false,
     })];
 
     let rendered_samples = client
@@ -666,6 +713,7 @@ pub async fn test_render_datapoints_normal() {
             is_deleted: false,
             source_inference_id: None,
             staled_at: None,
+            is_custom: false,
         }),
         Datapoint::Json(JsonInferenceDatapoint {
             dataset_name: "test_dataset".to_string(),
@@ -691,6 +739,7 @@ pub async fn test_render_datapoints_normal() {
             is_deleted: false,
             source_inference_id: None,
             staled_at: None,
+            is_custom: false,
         }),
         Datapoint::Chat(ChatInferenceDatapoint {
             dataset_name: "test_dataset".to_string(),
@@ -728,6 +777,7 @@ pub async fn test_render_datapoints_normal() {
             is_deleted: false,
             source_inference_id: None,
             staled_at: None,
+            is_custom: false,
         }),
         Datapoint::Chat(ChatInferenceDatapoint {
             dataset_name: "test_dataset".to_string(),
@@ -769,6 +819,7 @@ pub async fn test_render_datapoints_normal() {
             is_deleted: false,
             source_inference_id: None,
             staled_at: None,
+            is_custom: false,
         }),
     ];
 
@@ -958,6 +1009,7 @@ pub async fn test_render_datapoints_template_no_schema() {
         is_deleted: false,
         source_inference_id: None,
         staled_at: None,
+        is_custom: false,
     })];
 
     let rendered_samples = client
