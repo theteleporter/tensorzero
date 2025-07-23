@@ -34,45 +34,52 @@ export function VariantPerformance({
   metric_name,
   time_granularity,
   onTimeGranularityChange,
-  singleVariantMode = false,
 }: {
   variant_performances: VariantPerformanceRow[];
   metric_name: string;
   time_granularity: TimeWindowUnit;
   onTimeGranularityChange: (time_granularity: TimeWindowUnit) => void;
-  singleVariantMode?: boolean;
 }) {
   const { data, variants, chartConfig } = React.useMemo(
-    () =>
-      transformVariantPerformances(variant_performances, { singleVariantMode }),
-    [variant_performances, singleVariantMode],
+    () => transformVariantPerformances(variant_performances),
+    [variant_performances],
   );
 
   const [filteredVariants, setFilteredVariants] = React.useState(
     variants.map((v) => v.name),
   );
 
+  if (variants.length === 0) {
+    return (
+      <div className="space-y-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Variant Performance Over Time</CardTitle>
+            <CardDescription>
+              No variants available for this function.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-muted-foreground flex h-80 w-full items-center justify-center">
+              No data to display
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <Card>
         <CardHeader className="flex flex-row items-start justify-between">
           <div>
-            <CardTitle>
-              {singleVariantMode
-                ? "Performance Over Time"
-                : "Variant Performance Over Time"}
-            </CardTitle>
+            <CardTitle>Variant Performance Over Time</CardTitle>
             <CardDescription>
-              {singleVariantMode ? (
-                <span>
-                  Showing average metric values for <code>{metric_name}</code>
-                </span>
-              ) : (
-                <span>
-                  Showing average metric values by variant for metric{" "}
-                  <code>{metric_name}</code>
-                </span>
-              )}
+              <span>
+                Showing average metric values by variant for metric{" "}
+                <code>{metric_name}</code>
+              </span>
             </CardDescription>
           </div>
           <div className="flex gap-4">
@@ -126,42 +133,26 @@ export function VariantPerformance({
                 }
               />
               <ChartLegend content={<ChartLegendContent />} />
-              {singleVariantMode ? (
-                <Bar
-                  key={variants[0].name}
-                  dataKey={variants[0].name}
-                  name={variants[0].name}
-                  fill={variants[0].color}
-                  radius={4}
-                  maxBarSize={100}
-                >
-                  <ErrorBar
-                    dataKey={`${variants[0].name}_ci_error`}
-                    strokeWidth={1}
-                  />
-                </Bar>
-              ) : (
-                filteredVariants.map((variantName) => {
-                  const variant = variants.find((v) => v.name === variantName);
-                  if (!variant) return null;
+              {filteredVariants.map((variantName) => {
+                const variant = variants.find((v) => v.name === variantName);
+                if (!variant) return null;
 
-                  return (
-                    <Bar
-                      key={variant.name}
-                      dataKey={variant.name}
-                      name={variant.name}
-                      fill={variant.color}
-                      radius={4}
-                      maxBarSize={100}
-                    >
-                      <ErrorBar
-                        dataKey={`${variant.name}_ci_error`}
-                        strokeWidth={1}
-                      />
-                    </Bar>
-                  );
-                })
-              )}
+                return (
+                  <Bar
+                    key={variant.name}
+                    dataKey={variant.name}
+                    name={variant.name}
+                    fill={variant.color}
+                    radius={4}
+                    maxBarSize={100}
+                  >
+                    <ErrorBar
+                      dataKey={`${variant.name}_ci_error`}
+                      strokeWidth={1}
+                    />
+                  </Bar>
+                );
+              })}
             </BarChart>
           </ChartContainer>
         </CardContent>
@@ -195,23 +186,18 @@ type PerformanceDataGroupedByDate = {
 
 export function transformVariantPerformances(
   parsedRows: VariantPerformanceRow[],
-  args: { singleVariantMode: boolean },
 ): {
   data: VariantPerformanceData[];
   variants: VariantData[];
   chartConfig: Record<string, { label: string; color: string }>;
 } {
-  const { singleVariantMode } = args;
-
   // Remove rows with n=0 inferences
   const filtered = parsedRows.filter((row) => row.count > 0);
 
   const variantNames = [...new Set(filtered.map((row) => row.variant_name))];
   const variants: VariantData[] = variantNames.map((name, index) => ({
     name: name,
-    color: singleVariantMode
-      ? CHART_COLORS[0]
-      : CHART_COLORS[index % CHART_COLORS.length],
+    color: CHART_COLORS[index % CHART_COLORS.length],
   }));
 
   const chartConfig: Record<string, { label: string; color: string }> =

@@ -22,9 +22,7 @@ describe("transformVariantPerformances", () => {
         ci_error: 0.06774213240851094,
       },
     ];
-    const { data, variants } = transformVariantPerformances(input, {
-      singleVariantMode: false,
-    });
+    const { data, variants } = transformVariantPerformances(input);
     const variantNames = variants.map((variant) => variant.name);
     expect(data).toEqual([
       {
@@ -54,9 +52,7 @@ describe("transformVariantPerformances", () => {
         ci_error: 0.08521739130434784,
       },
     ];
-    const { data, variants } = transformVariantPerformances(input, {
-      singleVariantMode: false,
-    });
+    const { data, variants } = transformVariantPerformances(input);
     const variantNames = variants.map((variant) => variant.name);
     expect(data).toEqual([
       {
@@ -81,9 +77,7 @@ describe("transformVariantPerformances", () => {
       },
     ];
 
-    const { data, variants } = transformVariantPerformances(input, {
-      singleVariantMode: true,
-    });
+    const { data, variants } = transformVariantPerformances(input);
     const variantNames = variants.map((variant) => variant.name);
     expect(data).toEqual([
       {
@@ -132,9 +126,7 @@ describe("transformVariantPerformances", () => {
       },
     ];
 
-    const { data, variants } = transformVariantPerformances(input, {
-      singleVariantMode: false,
-    });
+    const { data, variants } = transformVariantPerformances(input);
     const variantNames = variants.map((variant) => variant.name);
     expect(data).toEqual([
       {

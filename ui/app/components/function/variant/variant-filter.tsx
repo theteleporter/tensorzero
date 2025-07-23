@@ -39,7 +39,8 @@ export function VariantFilter({
     [searchValue, variants],
   );
 
-  const areAllSelected = selectedValues.length === variants.length;
+  const areAllSelected =
+    variants.length > 0 && selectedValues.length === variants.length;
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -50,7 +51,9 @@ export function VariantFilter({
         setSelectedValue={(values) => {
           if (values.includes("ALL")) {
             setSelectedValues((v) =>
-              variants.length === v.length ? [] : variants.map((v) => v.name),
+              variants.length > 0 && variants.length === v.length
+                ? []
+                : variants.map((v) => v.name),
             );
           } else {
             setSelectedValues(values);
@@ -92,7 +95,11 @@ export function VariantFilter({
             }
           }}
         >
-          {matches.length ? (
+          {variants.length === 0 ? (
+            <div className="relative flex gap-2 px-2 py-1.5 select-none">
+              No variants available
+            </div>
+          ) : matches.length ? (
             <ComboboxList ref={listboxRef} role="listbox" className="listbox">
               <VariantFilterItem
                 isSelected={areAllSelected}
