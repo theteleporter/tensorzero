@@ -131,7 +131,6 @@ interface VariantFilterItemProps {
   label: React.ReactNode;
   color?: string;
   isSelected: boolean;
-  onClick?: (value: string) => void;
 }
 
 function VariantFilterItem({
@@ -139,14 +138,12 @@ function VariantFilterItem({
   label,
   color,
   isSelected,
-  onClick,
 }: VariantFilterItemProps) {
   return (
     <ComboboxItem
       focusOnHover
       className="data-[active-item]:bg-accent data-[active-item]:text-accent-foreground relative flex h-8 cursor-default items-center justify-between gap-2 rounded-sm px-2 py-1.5 select-none data-[active-item]:outline-none"
       value={value}
-      onClick={() => onClick?.(value)}
     >
       <span className="flex items-center gap-2">
         {color && (
